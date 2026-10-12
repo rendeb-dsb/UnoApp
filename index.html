@@ -14,7 +14,7 @@ header{flex:none;background:#fff;padding:5px 10px 7px;border-bottom:3px solid va
 .titleline{display:grid;grid-template-columns:60px 1fr 30px;align-items:center;min-height:39px}
 .version{font-size:11px;color:#555;text-align:left;white-space:nowrap}
 h1{font-size:clamp(21px,5vw,30px);letter-spacing:.16em;text-align:center;margin:0;font-weight:900;color:var(--red)}
-.gear{font-size:22px;text-align:right}
+.gear{font-size:22px;text-align:right;border:0;background:transparent;color:var(--dark);padding:0;cursor:pointer}
 nav{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding-top:5px}
 nav button{border:1px solid #aaa;border-radius:7px;background:#f2f2f2;padding:8px 13px;font-size:15px;font-weight:700;color:#222}
 nav button.active{background:var(--red);color:#fff;border-color:var(--red)}
@@ -54,12 +54,16 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 .small{font-size:12px;color:#555}
 
 #dateDialog{border:0;border-radius:12px;padding:20px;max-width:calc(100% - 32px);width:340px;box-shadow:0 12px 40px #0005}
-#dateDialog::backdrop,#gameOverDialog::backdrop{background:#0008}
+#dateDialog::backdrop,#gameOverDialog::backdrop,#scoresDialog::backdrop{background:#0008}
 #dateDialog h2{margin:0 0 8px;color:var(--red);font-size:20px}
 #dateDialog p{margin:0 0 14px}
 #matchDate{width:100%;min-height:44px;margin-bottom:16px}
 #gameOverDialog{border:0;border-radius:12px;padding:20px;max-width:calc(100% - 32px);width:340px;box-shadow:0 12px 40px #0005}
-#gameOverDialog h2{margin:0 0 12px;color:var(--red);font-size:20px}
+#gameOverDialog h2,#scoresDialog h2{margin:0 0 12px;color:var(--red);font-size:20px}
+#scoresDialog{border:0;border-radius:12px;padding:20px;max-width:calc(100% - 32px);width:340px;box-shadow:0 12px 40px #0005}
+#scoresDialog fieldset{border:0;padding:0;margin:0 0 18px}
+#scoresDialog label{display:flex;align-items:center;gap:10px;font-weight:400;margin:12px 0}
+#scoresDialog input[type=radio]{width:18px;height:18px}
 #gameOverMessage{font-size:18px;margin:0 0 18px}
 .dialogActions{display:flex;justify-content:flex-end;gap:8px}
 @media(max-width:480px){nav button{padding:8px 10px;font-size:14px}.titleline{grid-template-columns:48px 1fr 25px}#summary{font-size:12px}th,td{padding:6px;font-size:13px}}
@@ -67,7 +71,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v9</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
+ <div class="titleline"><div class="version">b1v10</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -93,6 +97,15 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
  <p id="gameOverMessage"></p>
  <div class="dialogActions"><button type="button" class="action" id="gameOverOk">Ok</button></div>
 </dialog>
+<dialog id="scoresDialog" aria-labelledby="scoresDialogTitle">
+ <h2 id="scoresDialogTitle">The Uno App asks:</h2>
+ <fieldset>
+  <label><input type="radio" name="scoreAction" value="import"> Import scores</label>
+  <label><input type="radio" name="scoreAction" value="export"> Export Scores</label>
+ </fieldset>
+ <div class="dialogActions"><button type="button" class="secondary" id="cancelScoresAction">Cancel</button><button type="button" class="action" id="continueScoresAction" disabled>Continue</button></div>
+</dialog>
+<input id="importFileInput" type="file" accept=".json,application/json" hidden>
 <main id="displayArea">
  <img id="hero" src="uno-reverse-pack.jpg" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
@@ -241,6 +254,50 @@ function showGames(){
  const finish=$("finishGame");
  if(finish)finish.addEventListener("click",()=>{selectedLoser=null;selectMenu("matches");showMatches();});
 }
+function localTimestampParts(){
+ const d=new Date();
+ const date=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+ const time=`${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}${String(d.getSeconds()).padStart(2,"0")}`;
+ return {date,time};
+}
+function exportPayload(){
+ return {format:"UnoAppScores",formatVersion:1,exportedAt:new Date().toISOString(),Matches:rows("SELECT MatchId, Date, Time FROM Matches ORDER BY MatchId"),Games:rows("SELECT GameId, MatchId, Loser, Score FROM Games ORDER BY GameId")};
+}
+async function exportScores(){
+ const payload=JSON.stringify(exportPayload(),null,2);const stamp=localTimestampParts();const filename=`UNO-${stamp.date}-${stamp.time}.JSON`;
+ const blob=new Blob([payload],{type:"application/json"});
+ if(typeof window.showSaveFilePicker==="function"){
+   try{const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:"UNO score backup (JSON)",accept:{"application/json":[".JSON",".json"]}}]});const writable=await handle.createWritable();await writable.write(blob);await writable.close();alert("Scores exported successfully.");return;}
+   catch(e){if(e&&e.name==="AbortError")return;console.warn("Save picker unavailable; using download instead.",e);}
+ }
+ const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ alert("The JSON backup was prepared for download. Choose your Downloads folder or another available save location in the browser.");
+}
+function validateImportPayload(data){
+ if(!data||typeof data!=="object"||Array.isArray(data)||data.format!=="UnoAppScores"||data.formatVersion!==1||!Array.isArray(data.Matches)||!Array.isArray(data.Games))throw new Error("This is not a supported UnoApp score backup.");
+ const matchIds=new Set(),gameIds=new Set();
+ const validDate=value=>{if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const [y,m,d]=value.split("-").map(Number);const dt=new Date(Date.UTC(y,m-1,d));return dt.getUTCFullYear()===y&&dt.getUTCMonth()===m-1&&dt.getUTCDate()===d;};
+ const validTime=value=>typeof value==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+ for(const m of data.Matches){if(!m||!Number.isSafeInteger(m.MatchId)||m.MatchId<=0||matchIds.has(m.MatchId)||!validDate(m.Date)||!validTime(m.Time))throw new Error("The backup contains an invalid or duplicate match record.");matchIds.add(m.MatchId);}
+ for(const g of data.Games){if(!g||!Number.isSafeInteger(g.GameId)||g.GameId<=0||gameIds.has(g.GameId)||!Number.isSafeInteger(g.MatchId)||!matchIds.has(g.MatchId)||!['D','P'].includes(g.Loser)||!Number.isSafeInteger(g.Score)||g.Score<=0)throw new Error("The backup contains an invalid game record or a game without a matching match.");gameIds.add(g.GameId);}
+ return true;
+}
+async function importScoresFile(file){
+ if(!file) return;
+ if(!/^UNO-.+\.JSON$/i.test(file.name)){alert('Please select a backup file named like "UNO-YYYYMMDD-HHMMSS.JSON".');return;}
+ let data;try{data=JSON.parse(await file.text());validateImportPayload(data);}catch(e){alert("Import cancelled. "+(e.message||"The selected file is not valid JSON."));return;}
+ if(!confirm(`This backup contains ${data.Matches.length} match record(s) and ${data.Games.length} game record(s). Importing will REPLACE all existing UnoApp match and game records. Continue?`))return;
+ const previousBytes=db.export();
+ try{
+  db.run("BEGIN TRANSACTION");
+  db.run("DELETE FROM Games");db.run("DELETE FROM Matches");
+  for(const m of data.Matches)db.run("INSERT INTO Matches(MatchId,Date,Time) VALUES(?,?,?)",[m.MatchId,m.Date,m.Time]);
+  for(const g of data.Games)db.run("INSERT INTO Games(GameId,MatchId,Loser,Score) VALUES(?,?,?,?)",[g.GameId,g.MatchId,g.Loser,g.Score]);
+  db.run("COMMIT");
+  try{await persistDb();}catch(e){db.close();db=new SQL.Database(new Uint8Array(previousBytes));db.run("PRAGMA foreign_keys = ON;");throw e;}
+  currentMatchId=null;selectedLoser=null;showHome();alert("Scores imported successfully. Existing match and game records were replaced.");
+ }catch(e){try{db.run("ROLLBACK");}catch(_){}alert("Import failed; the existing records were preserved. "+e.message);}
+}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>selectMenu(b.dataset.menu)));
 $("listMatches").addEventListener("click",showMatches);
@@ -253,11 +310,26 @@ $("gameOverOk").addEventListener("click",async()=>{
  try{$("gameOverDialog").close();await startNewMatchNow();}
  catch(e){alert("Could not start the next match: "+e.message);}
 });
+$("gearButton").addEventListener("click",()=>{
+ document.querySelectorAll('input[name="scoreAction"]').forEach(r=>r.checked=false);
+ $("continueScoresAction").disabled=true;
+ if(typeof $("scoresDialog").showModal==="function")$("scoresDialog").showModal();
+ else alert('Please use a browser that supports the UnoApp settings dialog.');
+});
+document.querySelectorAll('input[name="scoreAction"]').forEach(r=>r.addEventListener("change",()=>{$("continueScoresAction").disabled=!document.querySelector('input[name="scoreAction"]:checked');}));
+$("cancelScoresAction").addEventListener("click",()=>$("scoresDialog").close());
+$("continueScoresAction").addEventListener("click",async()=>{
+ const choice=document.querySelector('input[name="scoreAction"]:checked');if(!choice)return;
+ $("scoresDialog").close();
+ if(choice.value==="export"){try{await exportScores();}catch(e){alert("Could not export scores: "+e.message);}}
+ else{$("importFileInput").value="";$("importFileInput").click();}
+});
+$("importFileInput").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];try{await importScoresFile(file);}catch(err){alert("Could not import scores: "+err.message);}});
 $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v9",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v10",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
