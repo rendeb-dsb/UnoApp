@@ -73,7 +73,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v14</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v15</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -83,7 +83,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </header>
 <section id="messageArea">
  <div id="statusMessage">Let's Play UNO!</div>
- <div id="summary">Games played: 0 &nbsp; | &nbsp; Don's score: 0 &nbsp; | &nbsp; Paula's loses: 0</div>
+ <div id="summary" style="display:none">Games played: 0 &nbsp; | &nbsp; Don's score: 0 &nbsp; | &nbsp; Paula's loses: 0</div>
 </section>
 <dialog id="dateDialog" aria-labelledby="dateDialogTitle">
  <h2 id="dateDialogTitle">New Match Date</h2>
@@ -132,10 +132,10 @@ function getLatestMatch(){return rows("SELECT * FROM Matches ORDER BY MatchId DE
 function matchTotals(matchId){return rows("SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN Loser='D' THEN Score ELSE 0 END),0) AS don, COALESCE(SUM(CASE WHEN Loser='P' THEN Score ELSE 0 END),0) AS paula FROM Games WHERE MatchId=?",[matchId])[0];}
 function isContinuing(matchId){const t=matchTotals(matchId);return Number(t.don)<300&&Number(t.paula)<300;}
 function activeMatch(){const m=getLatestMatch();return m&&isContinuing(m.MatchId)?m:null;}
-function updateMessage(){const m=getLatestMatch();const active=m&&isContinuing(m.MatchId)?m:null;if(!active){$("statusMessage").textContent="Let's Play UNO!";$("summary").textContent="Games played: 0  |  Don's score: 0  |  Paula's loses: 0";currentMatchId=null;return;}currentMatchId=active.MatchId;const t=matchTotals(active.MatchId);$("statusMessage").textContent="Match underway";$("summary").textContent=`Games played: ${t.n}  |  Don's score: ${t.don}  |  Paula's loses: ${t.paula}`;}
+function updateMessage(){$("summary").style.display="none";const m=getLatestMatch();const active=m&&isContinuing(m.MatchId)?m:null;if(!active){$("statusMessage").textContent="Let's Play UNO!";$("summary").textContent="Games played: 0  |  Don's score: 0  |  Paula's loses: 0";currentMatchId=null;return;}currentMatchId=active.MatchId;const t=matchTotals(active.MatchId);$("statusMessage").textContent="Match underway";$("summary").textContent=`Games played: ${t.n}  |  Don's score: ${t.don}  |  Paula's loses: ${t.paula}`;}
 function hideScreens(){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("visible"));$("hero").style.display="none";$("heroButton").style.display="none";}
 function showHome(){$("messageArea").style.display="block";hideScreens();$("hero").style.display="block";$("heroButton").style.display="block";activeMenu=null;document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));$("matchesSubnav").classList.remove("show");updateMessage();}
-function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";$("summary").style.display=name==="matches"?"none":"block";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");showStats();}updateMessage();}
+function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";$("summary").style.display="none";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");showStats();}updateMessage();}
 function showStats(){
  const matches=Number(rows("SELECT COUNT(*) AS n FROM Matches")[0].n);
  const games=Number(rows("SELECT COUNT(*) AS n FROM Games")[0].n);
@@ -361,7 +361,7 @@ $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v14",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v15",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
