@@ -1,8 +1,1 @@
-{
-  "name": "UnoApp",
-  "short_name": "UnoApp",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#fffdf7",
-  "theme_color": "#b51224"
-}
+{"name":"UnoApp","short_name":"UnoApp","start_url":"./","display":"standalone","background_color":"#fffdf7","theme_color":"#b51224"}
