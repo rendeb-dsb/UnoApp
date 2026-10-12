@@ -1,13 +1,13 @@
-UnoApp b1v2
+UnoApp b1v3
 ===========
 
-This build adds a calendar date prompt when starting a new match.
+Changes in this build:
+- After saving a game's score, the Player and Score fields are disabled.
+- A Finish button appears above the games list; pressing it opens Matches > List.
+- Matches List has one column per date, newest date first.
+- Matches from the same day share one column.
+- The Time label and Game # labels are omitted from the Matches List.
+- Each match's time is displayed in a yellow cell; selecting it opens that match.
+- Game scores are listed below their match time in game order.
 
-New behavior:
-- Press the opening UNO graphic.
-- If an active match exists, open its Games screen immediately without prompting for a date.
-- If no active match exists, a popup calendar asks for the new match date.
-- Continue creates the match using the selected date and the current local time.
-- Cancel closes the popup without creating a match.
-
-Upload all files in this folder to the root of the GitHub Pages repository. Initial launch requires an Internet connection to load SQLite WebAssembly. The SQLite database is persisted locally in browser-managed storage.
+Upload all files in this folder to the root of your GitHub Pages repository. SQLite WebAssembly is loaded from a CDN on first use and needs an Internet connection. Database data remains locally stored in the browser profile.
