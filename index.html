@@ -32,6 +32,8 @@ nav button.active{background:var(--red);color:#fff;border-color:var(--red)}
 .screen.visible{display:block}
 .screen h2{font-size:19px;margin:0 0 12px;color:var(--red)}
 .notice{padding:12px;border:1px solid #ddd;border-radius:8px;background:white}
+.scoreSummaryLine{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:nowrap}
+.scoreSummaryLine span:last-child{text-align:right;white-space:nowrap}
 .formrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
 label{font-weight:700}input,select{font:inherit;padding:8px;border:1px solid #aaa;border-radius:5px;max-width:100%}
 .action{border:0;border-radius:6px;background:var(--red);color:#fff;padding:9px 14px;font-weight:700}
@@ -71,7 +73,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v11</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v12</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -214,9 +216,11 @@ function showGames(){
  const t=matchTotals(m.MatchId);
  const ended=!(Number(t.don)<300&&Number(t.paula)<300);
  const gs=rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]);
- let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}<br>Games played: ${t.n}<br>Don's score: ${t.don}<br>Paula's score: ${t.paula}${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;
+ const donLosses=gs.filter(g=>g.Loser==="D").length;
+ const paulaLosses=gs.filter(g=>g.Loser==="P").length;
+ let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}<br>Games played: ${t.n}<div class="scoreSummaryLine"><span>Don's score: ${t.don}</span><span>Don's losses: ${donLosses}</span></div><div class="scoreSummaryLine"><span>Paula's score: ${t.paula}</span><span>Paula's losses: ${paulaLosses}</span></div>${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;
  if(!ended){
-   html+='<h3>Record completed game</h3><div class="formrow"><label>Loser:</label><div class="loserButtons" role="group" aria-label="Select loser"><button type="button" class="loserButton" id="loserDon" aria-pressed="false">Don</button><button type="button" class="loserButton" id="loserPaula" aria-pressed="false">Paula</button></div><label for="score">Score:</label><input id="score" type="number" min="1" step="1" inputmode="numeric" placeholder="Points" disabled style="width:55px"><button class="action" id="saveGame" disabled>Save</button></div>';
+   html+='<h3>Record completed game</h3><div class="formrow"><label>Loser:</label><div class="loserButtons" role="group" aria-label="Select loser"><button type="button" class="loserButton" id="loserDon" aria-pressed="false">Don</button><button type="button" class="loserButton" id="loserPaula" aria-pressed="false">Paula</button></div><label for="score">Score:</label><input id="score" type="number" min="1" step="1" inputmode="numeric" placeholder="Points" disabled style="width:70px"><button class="action" id="saveGame" disabled>Save</button></div>';
  }
  html+='<h3>Games in this match</h3>';
  if(!gs.length)html+='<p>No games recorded yet.</p>';
@@ -338,7 +342,7 @@ $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v11",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v12",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
