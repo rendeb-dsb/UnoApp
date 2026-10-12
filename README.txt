@@ -1,11 +1,8 @@
-UnoApp b1v5
+UnoApp b1v6
 ===========
 
-This build addresses stale app files and hardens match-date validation.
+Fix: New-match date validation now parses the YYYY-MM-DD input value using split fields rather than a regular expression. This avoids the escaping bug that caused a valid date to be rejected.
 
-Important install steps:
-1. Upload all files in this folder to the ROOT of the GitHub Pages published folder, replacing existing files.
-2. In the browser, reload the published site. This build uses a new service-worker cache version and requests fresh index.html/sw.js.
-3. If the browser still shows an old build, open the site in Chrome, tap the site controls icon > Site settings > Storage and clear site data, then reload. WARNING: clearing site data can delete the locally stored UnoDB database. Do this only after backing up/if there is no data you need to preserve.
+Also increments the app and service-worker cache version to b1v6 and requests fresh app-shell files.
 
-The date control's displayed date may be localized (for example MM/DD/YYYY), but its value is stored as ISO YYYY-MM-DD and validated accordingly.
+Upload all files in this folder to the GitHub Pages publishing root. The date shown on Android may look like MM/DD/YYYY; the underlying input value should be YYYY-MM-DD.

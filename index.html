@@ -59,7 +59,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v5</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
+ <div class="titleline"><div class="version">b1v6</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -116,13 +116,21 @@ function startOrContinue(){
 }
 async function createMatchWithDate(date){
  date=String(date||"").trim();
- // Android may display a localized date, but input[type=date].value is ISO YYYY-MM-DD.
- const isoMatch=date.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
- if(!isoMatch){alert("Please select a valid match date.");return;}
- const year=Number(isoMatch[1]), month=Number(isoMatch[2]), day=Number(isoMatch[3]);
+ // Parse the date without a regular expression. Android displays a localized
+ // date, but an HTML date input's .value is expected to be YYYY-MM-DD.
+ const parts=date.split("-");
+ if(parts.length!==3||parts[0].length!==4||parts[1].length!==2||parts[2].length!==2){
+   alert("Please select a valid match date.");return;
+ }
+ const year=Number(parts[0]), month=Number(parts[1]), day=Number(parts[2]);
+ if(!Number.isInteger(year)||!Number.isInteger(month)||!Number.isInteger(day)||year<1||month<1||month>12||day<1||day>31){
+   alert("Please select a valid match date.");return;
+ }
  const parsed=new Date(Date.UTC(year,month-1,day));
- if(parsed.getUTCFullYear()!==year||parsed.getUTCMonth()!==month-1||parsed.getUTCDate()!==day){alert("Please select a valid calendar date.");return;}
- date=isoMatch[0];
+ if(parsed.getUTCFullYear()!==year||parsed.getUTCMonth()!==month-1||parsed.getUTCDate()!==day){
+   alert("Please select a valid calendar date.");return;
+ }
+ date=parts.join("-");
  const d=new Date();
  const time=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
  await run("INSERT INTO Matches(Date,Time) VALUES(?,?)",[date,time]);
@@ -189,7 +197,9 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>selectMenu(b.dataset.menu)));
 $("listMatches").addEventListener("click",showMatches);
 $("heroButton").addEventListener("click",startOrContinue);
-$("confirmNewMatch").addEventListener("click",()=>{const date=$("matchDate").value;if(!date){alert("Please select a match date.");return;}createMatchWithDate(date).catch(e=>alert("Could not create match: "+e.message));});
+$("confirmNewMatch").addEventListener("click",()=>{const date=$("matchDate").value;
+ if(!date){alert("Please select a match date.");return;}
+ createMatchWithDate(date).catch(e=>alert("Could not create match: "+e.message));});
 $("cancelNewMatch").addEventListener("click",()=> $("dateDialog").close());
 $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
