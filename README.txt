@@ -1,11 +1,10 @@
-UnoApp b1v13
+UnoApp b1v14
 
-Upload all files in this ZIP to the root of the UnoApp GitHub repository, replacing the previous files.
+Upload the contents of this folder to the root of your GitHub UnoApp repository.
 
-Changes in b1v13:
-- After the match-ending message is acknowledged with Ok, the app now opens the match-date picker. The selected date is used to create the next match.
-- The date picker defaults to the current local date, which can be changed before continuing.
-- Preserved b1v12 behavior, including scores, loss counts, Stats, and import/export.
-- Updated service-worker cache version to b1v13.
+Changes in b1v14:
+- Removed the “Games played” summary line from the Matches list and Count views.
+- Added Matches > Count, listing match counts grouped by date, newest date first.
+- Continued to prompt for a match date when starting a new match.
 
-The SQLite schema and browser storage location remain unchanged. Do not clear browser site data. Keep a backup before testing import because a successful import replaces the existing match and game records.
+The app stores its SQLite database in the browser using IndexedDB. Do not clear site storage if you want to preserve saved records.

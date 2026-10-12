@@ -73,13 +73,13 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v13</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v14</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
   <button id="menuStats" data-menu="stats">Stats</button>
  </nav>
- <div id="matchesSubnav" class="subnav"><button id="listMatches">List</button></div>
+ <div id="matchesSubnav" class="subnav"><button id="listMatches">List</button><button id="countMatches">Count</button></div>
 </header>
 <section id="messageArea">
  <div id="statusMessage">Let's Play UNO!</div>
@@ -135,7 +135,7 @@ function activeMatch(){const m=getLatestMatch();return m&&isContinuing(m.MatchId
 function updateMessage(){const m=getLatestMatch();const active=m&&isContinuing(m.MatchId)?m:null;if(!active){$("statusMessage").textContent="Let's Play UNO!";$("summary").textContent="Games played: 0  |  Don's score: 0  |  Paula's loses: 0";currentMatchId=null;return;}currentMatchId=active.MatchId;const t=matchTotals(active.MatchId);$("statusMessage").textContent="Match underway";$("summary").textContent=`Games played: ${t.n}  |  Don's score: ${t.don}  |  Paula's loses: ${t.paula}`;}
 function hideScreens(){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("visible"));$("hero").style.display="none";$("heroButton").style.display="none";}
 function showHome(){$("messageArea").style.display="block";hideScreens();$("hero").style.display="block";$("heroButton").style.display="block";activeMenu=null;document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));$("matchesSubnav").classList.remove("show");updateMessage();}
-function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");showStats();}updateMessage();}
+function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";$("summary").style.display=name==="matches"?"none":"block";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");showStats();}updateMessage();}
 function showStats(){
  const matches=Number(rows("SELECT COUNT(*) AS n FROM Matches")[0].n);
  const games=Number(rows("SELECT COUNT(*) AS n FROM Games")[0].n);
@@ -184,7 +184,7 @@ async function startNewMatchNow(){
  await createMatchWithDate(date);
 }
 function showMatches(){
- $("messageArea").style.display="block";hideScreens();$("matchesScreen").classList.add("visible");
+ $("messageArea").style.display="block";$("summary").style.display="none";hideScreens();$("matchesScreen").classList.add("visible");
  const matches=rows("SELECT * FROM Matches ORDER BY Date DESC, Time DESC, MatchId DESC");
  if(!matches.length){$("matchesTable").innerHTML='<div class="notice">No matches recorded.</div>';return;}
  const dates=[...new Set(matches.map(m=>m.Date))];
@@ -208,6 +208,17 @@ function showMatches(){
    currentMatchId=Number(b.dataset.match);selectedLoser=null;selectMenu("games");
  }));
 }
+function showMatchCount(){
+ $("messageArea").style.display="block";$("summary").style.display="none";hideScreens();$("matchesScreen").classList.add("visible");
+ const counts=rows("SELECT Date, COUNT(*) AS MatchCount FROM Matches GROUP BY Date ORDER BY Date DESC");
+ let html='<h2>Match Count</h2>';
+ if(!counts.length){html+='<div class="notice">No matches recorded.</div>';$("matchesTable").innerHTML=html;return;}
+ html+='<table><thead><tr><th>Date</th><th>Number of matches</th></tr></thead><tbody>';
+ counts.forEach(r=>{html+=`<tr><td>${escapeHtml(r.Date)}</td><td>${Number(r.MatchCount)}</td></tr>`;});
+ html+='</tbody></table>';
+ $("matchesTable").innerHTML=html;
+}
+
 function showGames(){
  $("messageArea").style.display="none";hideScreens();$("gamesScreen").classList.add("visible");
  const m= currentMatchId ? rows("SELECT * FROM Matches WHERE MatchId=?",[currentMatchId])[0] : activeMatch();
@@ -314,6 +325,7 @@ async function importScoresFile(file){
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>selectMenu(b.dataset.menu)));
 $("listMatches").addEventListener("click",showMatches);
+$("countMatches").addEventListener("click",showMatchCount);
 $("heroButton").addEventListener("click",startOrContinue);
 $("confirmNewMatch").addEventListener("click",()=>{const date=$("matchDate").value;
  if(!date){appAlert("Please select a match date.");return;}
@@ -349,7 +361,7 @@ $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v13",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v14",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
