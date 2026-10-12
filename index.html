@@ -76,7 +76,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v16</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v17</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -112,7 +112,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </dialog>
 <input id="importFileInput" type="file" accept=".json,application/json" hidden>
 <main id="displayArea">
- <img id="hero" src="./uno-reverse-pack.jpg?v=b1v16" alt="UNO Reverse Pack">
+ <img id="hero" src="./uno-reverse-pack.jpg?v=b1v17" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
  <section id="matchesScreen" class="screen"><h2>Matches</h2><div id="matchesTable"></div></section>
  <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span></div><div id="gameScreenContent"></div></section>
@@ -147,7 +147,9 @@ function showStats(){
  const paulaMatchLosses=Number(rows("SELECT COUNT(*) AS n FROM Matches m WHERE COALESCE((SELECT SUM(g.Score) FROM Games g WHERE g.MatchId=m.MatchId AND g.Loser='P'),0)>=300")[0].n);
  const donGameLosses=Number(rows("SELECT COUNT(*) AS n FROM Games WHERE Loser='D'")[0].n);
  const paulaGameLosses=Number(rows("SELECT COUNT(*) AS n FROM Games WHERE Loser='P'")[0].n);
- $("statsContent").innerHTML=`<div>Average number of games per match: <b>${average}</b></div><div>Number of match losses for Don: <b>${donMatchLosses}</b></div><div>Number of match losses for Paula: <b>${paulaMatchLosses}</b></div><div>Number of game losses for Don: <b>${donGameLosses}</b></div><div>Number of game losses for Paula: <b>${paulaGameLosses}</b></div><p class="small">Average = total recorded games (${games}) ÷ total matches (${matches}). A match loss is counted when that player's accumulated game-loss scores reach 300 or more.</p>`;
+ const donMostWins=Number(rows("SELECT COALESCE(MAX(n),0) AS n FROM (SELECT MatchId, SUM(CASE WHEN Loser='P' THEN 1 ELSE 0 END) AS n FROM Games GROUP BY MatchId)")[0].n);
+ const paulaMostWins=Number(rows("SELECT COALESCE(MAX(n),0) AS n FROM (SELECT MatchId, SUM(CASE WHEN Loser='D' THEN 1 ELSE 0 END) AS n FROM Games GROUP BY MatchId)")[0].n);
+ $("statsContent").innerHTML=`<div>Average number of games per match: <b>${average}</b></div><div>Number of match losses for Don: <b>${donMatchLosses}</b></div><div>Number of match losses for Paula: <b>${paulaMatchLosses}</b></div><div>Number of game losses for Don: <b>${donGameLosses}</b></div><div>Number of game losses for Paula: <b>${paulaGameLosses}</b></div><div>Most games won in a match (Don): <b>${donMostWins}</b></div><div>Most games won in a match (Paula): <b>${paulaMostWins}</b></div><p class="small">Average = total recorded games (${games}) ÷ total matches (${matches}). A match loss is counted when that player's accumulated game-loss scores reach 300 or more. Games won = games in which the other player was recorded as the loser; the statistic is the maximum in any one match.</p>`;
 }
 function startOrContinue(){
  let m=activeMatch();
@@ -192,20 +194,26 @@ function showMatches(){
  if(!matches.length){$("matchesTable").innerHTML='<div class="notice">No matches recorded.</div>';return;}
  const dates=[...new Set(matches.map(m=>m.Date))];
  let html='<table><thead><tr>';
- dates.forEach(d=>html+=`<th>${escapeHtml(d)}</th>`);
+ dates.forEach(d=>html+=`<th colspan="2">${escapeHtml(d)}</th>`);
  html+='</tr></thead><tbody><tr>';
  dates.forEach(date=>{
    const dayMatches=matches.filter(m=>m.Date===date);
-   html+='<td style="vertical-align:top;white-space:normal;min-width:130px">';
+   html+='<td style="vertical-align:top;white-space:normal;width:65px;min-width:65px;padding:4px">';
    dayMatches.forEach(m=>{
      const gs=rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]);
-     html+=`<div class="matchBlock"><button class="matchTime" data-match="${m.MatchId}" aria-label="Open match ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}">${escapeHtml(m.Time)}</button>`;
-     if(gs.length) html+=`<div class="matchScores">${gs.map(g=>escapeHtml(String(g.Score))).join("<br>")}</div>`;
+     html+=`<div class="matchBlock"><button class="matchTime" data-match="${m.MatchId}" aria-label="Open match ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}">${escapeHtml(m.Time)}</button></div>`;
+   });
+   html+='</td><td style="vertical-align:top;white-space:normal;width:65px;min-width:65px;padding:4px">';
+   dayMatches.forEach(m=>{
+     const gs=rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]);
+     html+='<div class="matchBlock">';
+     if(gs.length) html+=`<div class="matchScores">${gs.map(g=>escapeHtml(g.Loser==="D"?"Don":"Paula")).join("<br>")}</div>`;
+     else html+='<div class="matchScores">&nbsp;</div>';
      html+='</div>';
    });
    html+='</td>';
  });
- html+='</tr></tbody></table><p class="small">Select a yellow time cell to review that match.</p>';
+ html+='</tr></tbody></table><p class="small">Select a yellow time cell to review that match. The adjacent column identifies the player who lost each game.</p>';
  $("matchesTable").innerHTML=html;
  $("matchesTable").querySelectorAll("button[data-match]").forEach(b=>b.addEventListener("click",()=>{
    currentMatchId=Number(b.dataset.match);selectedLoser=null;selectMenu("games");
@@ -366,7 +374,7 @@ $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v16",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v17",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
