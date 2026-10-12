@@ -35,6 +35,11 @@ nav button.active{background:var(--red);color:#fff;border-color:var(--red)}
 .formrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
 label{font-weight:700}input,select{font:inherit;padding:8px;border:1px solid #aaa;border-radius:5px;max-width:100%}
 .action{border:0;border-radius:6px;background:var(--red);color:#fff;padding:9px 14px;font-weight:700}
+.loserButtons{display:flex;gap:7px}
+.loserButton{min-width:82px;border:1px solid #999;border-radius:6px;background:#eee;color:#222;padding:9px 12px;font:inherit;font-weight:700}
+.loserButton.selected{background:var(--red);border-color:var(--red);color:#fff}
+.loserButton:disabled{opacity:1}
+.action:disabled{opacity:.45}
 .secondary{border:1px solid #aaa;border-radius:6px;background:#eee;color:#222;padding:9px 14px;font-weight:700}
 table{border-collapse:collapse;width:100%;background:white}th,td{border:1px solid #ccc;padding:7px 8px;text-align:left;white-space:nowrap}th{background:#f2e7e8}
 #matchesTable{overflow:auto}
@@ -59,7 +64,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v7</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
+ <div class="titleline"><div class="version">b1v8</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -91,7 +96,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 <script>
 "use strict";
 const DB_NAME="UnoDB", DB_KEY="sqlite-bytes";
-let db=null, SQL=null, currentMatchId=null, activeMenu=null, gameJustCompleted=false;
+let db=null, SQL=null, currentMatchId=null, activeMenu=null, selectedLoser=null;
 const $=id=>document.getElementById(id);
 function idbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open("UnoAppStorage",1);req.onupgradeneeded=()=>req.result.createObjectStore("files");req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function persistDb(){const bytes=db.export();const store=await idbOpen();await new Promise((resolve,reject)=>{const tx=store.transaction("files","readwrite");tx.objectStore("files").put(bytes,DB_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});store.close();}
@@ -108,7 +113,7 @@ function showHome(){hideScreens();$("hero").style.display="block";$("heroButton"
 function selectMenu(name){activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");}updateMessage();}
 function startOrContinue(){
  let m=activeMatch();
- if(m){currentMatchId=m.MatchId;gameJustCompleted=false;selectMenu("games");return;}
+ if(m){currentMatchId=m.MatchId;selectedLoser=null;selectMenu("games");return;}
  const d=new Date();
  $("matchDate").value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
  if(typeof $("dateDialog").showModal==="function") $("dateDialog").showModal();
@@ -134,7 +139,7 @@ async function createMatchWithDate(date){
  const d=new Date();
  const time=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
  await run("INSERT INTO Matches(Date,Time) VALUES(?,?)",[date,time]);
- const m=getLatestMatch();currentMatchId=m.MatchId;gameJustCompleted=false;
+ const m=getLatestMatch();currentMatchId=m.MatchId;selectedLoser=null;
  $("dateDialog").close();
  selectMenu("games");
 }
@@ -160,7 +165,7 @@ function showMatches(){
  html+='</tr></tbody></table><p class="small">Select a yellow time cell to review that match.</p>';
  $("matchesTable").innerHTML=html;
  $("matchesTable").querySelectorAll("button[data-match]").forEach(b=>b.addEventListener("click",()=>{
-   currentMatchId=Number(b.dataset.match);gameJustCompleted=false;selectMenu("games");
+   currentMatchId=Number(b.dataset.match);selectedLoser=null;selectMenu("games");
  }));
 }
 function showGames(){
@@ -171,27 +176,47 @@ function showGames(){
  const t=matchTotals(m.MatchId);
  const ended=!(Number(t.don)<300&&Number(t.paula)<300);
  const gs=rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]);
- const locked=gameJustCompleted;
  let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}<br>Games played: ${t.n}<br>Don's score: ${t.don}<br>Paula's score: ${t.paula}${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;
- if(locked) html+='<div class="finishRow"><button class="action" id="finishGame">Finish</button></div>';
- if(!ended&&!locked){
-   html+=`<h3>Record completed game</h3><div class="formrow"><label for="loser">Player:</label><select id="loser"><option value="D">D — Don</option><option value="P">P — Paula</option></select><label for="score">Score:</label><input id="score" type="number" min="1" step="1" inputmode="numeric" placeholder="Points" style="width:110px"><button class="action" id="saveGame">Save Game</button></div>`;
- } else if(!ended&&locked){
-   html+='<div class="formrow"><label for="loser">Player:</label><select id="loser" disabled><option>Game recorded</option></select><label for="score">Score:</label><input id="score" type="number" disabled value="" placeholder="Game recorded" style="width:110px"></div>';
+ if(gs.length) html+='<div class="finishRow"><button class="action" id="finishGame">Finish</button></div>';
+ if(!ended){
+   html+='<h3>Record completed game</h3><div class="formrow"><label>Loser:</label><div class="loserButtons" role="group" aria-label="Select loser"><button type="button" class="loserButton" id="loserDon" aria-pressed="false">Don</button><button type="button" class="loserButton" id="loserPaula" aria-pressed="false">Paula</button></div><label for="score">Score:</label><input id="score" type="number" min="1" step="1" inputmode="numeric" placeholder="Points" disabled style="width:110px"><button class="action" id="saveGame" disabled>Save</button></div>';
  }
  html+='<h3>Games in this match</h3>';
  if(!gs.length)html+='<p>No games recorded yet.</p>';
  else{html+='<table><thead><tr><th>Game</th><th>Loser</th><th>Score</th></tr></thead><tbody>';gs.forEach((g,i)=>html+=`<tr><td>${i+1}</td><td>${escapeHtml(g.Loser==="D"?"Don":"Paula")}</td><td>${g.Score}</td></tr>`);html+='</tbody></table>';}
  $("gameScreenContent").innerHTML=html;
- const save=$("saveGame");
- if(save)save.addEventListener("click",async()=>{
-   const loser=$("loser").value;const score=Number($("score").value);
-   if(!Number.isInteger(score)||score<=0){alert("Enter a positive whole-number score.");return;}
-   await run("INSERT INTO Games(MatchId,Loser,Score) VALUES(?,?,?)",[currentMatchId,loser,score]);
-   gameJustCompleted=true;updateMessage();showGames();
- });
+ const scoreInput=$("score"), save=$("saveGame");
+ function setLoser(loser){
+   selectedLoser=loser;
+   $("loserDon").classList.toggle("selected",loser==="D");
+   $("loserPaula").classList.toggle("selected",loser==="P");
+   $("loserDon").setAttribute("aria-pressed",String(loser==="D"));
+   $("loserPaula").setAttribute("aria-pressed",String(loser==="P"));
+   scoreInput.disabled=false;scoreInput.focus();
+   updateSaveState();
+ }
+ function updateSaveState(){
+   if(!save)return;
+   const score=Number(scoreInput.value);
+   save.disabled=!(selectedLoser&&scoreInput.value.trim()!==""&&Number.isInteger(score)&&score>0);
+ }
+ if(!ended){
+   $("loserDon").addEventListener("click",()=>setLoser("D"));
+   $("loserPaula").addEventListener("click",()=>setLoser("P"));
+   scoreInput.addEventListener("input",updateSaveState);
+   save.addEventListener("click",async()=>{
+     if(!selectedLoser){alert("Select Don or Paula as the loser.");return;}
+     const score=Number(scoreInput.value);
+     if(!Number.isInteger(score)||score<=0){alert("Enter a positive whole-number score.");return;}
+     save.disabled=true;
+     try{
+       await run("INSERT INTO Games(MatchId,Loser,Score) VALUES(?,?,?)",[currentMatchId,selectedLoser,score]);
+       selectedLoser=null;updateMessage();showGames();
+     }catch(e){save.disabled=false;alert("Could not save game: "+e.message);}
+   });
+ }
  const finish=$("finishGame");
- if(finish)finish.addEventListener("click",()=>{gameJustCompleted=false;selectMenu("matches");showMatches();});
+ if(finish)finish.addEventListener("click",()=>{selectedLoser=null;selectMenu("matches");showMatches();});
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>selectMenu(b.dataset.menu)));
@@ -205,7 +230,7 @@ $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v7",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v8",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });

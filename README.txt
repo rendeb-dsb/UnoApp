@@ -1,7 +1,7 @@
-UnoApp b1v7
+UnoApp b1v8
 
-This build fixes the service-worker routing for the normal GitHub Pages root address. The app root is now handled network-first, like index.html, so an older cached root page should not mask the current build. The service worker uses a new cache name and removes older unoapp-* caches when activated.
+Upload all files in this ZIP to the root of the UnoApp GitHub repository, replacing the previous files.
 
-The SQLite database remains in IndexedDB; this update does not intentionally clear or modify it.
+Changes in b1v8: the Games screen uses mutually exclusive Don and Paula loser buttons. Score stays disabled until a loser is selected. After Save, the game is recorded in the list, both loser buttons reset to unpressed and remain enabled, and Score resets to disabled. Finish returns to Matches > List.
 
-To install: upload the contents of this folder to the root of the GitHub repository used by GitHub Pages. Then open https://rendeb-dsb.github.io/UnoApp/ and confirm the header displays b1v7.
+The existing SQLite database storage and b1v7 date-validation and service-worker root-address fixes are preserved. Do not delete browser site data.
