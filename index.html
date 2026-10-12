@@ -77,7 +77,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v21</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v22</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -113,7 +113,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </dialog>
 <input id="importFileInput" type="file" accept=".json,application/json" hidden>
 <main id="displayArea">
- <img id="hero" src="./uno-reverse-pack.jpg?v=b1v21" alt="UNO Reverse Pack">
+ <img id="hero" src="./uno-reverse-pack.jpg?v=b1v22" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
  <section id="matchesScreen" class="screen"><h2>Matches</h2><div id="matchesTable"></div></section>
  <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span></div><div id="gameScreenContent"></div></section>
@@ -127,7 +127,22 @@ let db=null, SQL=null, currentMatchId=null, activeMenu=null, selectedLoser=null;
 const $=id=>document.getElementById(id);
 function idbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open("UnoAppStorage",1);req.onupgradeneeded=()=>req.result.createObjectStore("files");req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function persistDb(){const bytes=db.export();const store=await idbOpen();await new Promise((resolve,reject)=>{const tx=store.transaction("files","readwrite");tx.objectStore("files").put(bytes,DB_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});store.close();}
-async function loadDb(){const store=await idbOpen();const bytes=await new Promise((resolve,reject)=>{const tx=store.transaction("files","readonly");const req=tx.objectStore("files").get(DB_KEY);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});store.close();if(bytes)db=new SQL.Database(new Uint8Array(bytes));else db=new SQL.Database();db.run("PRAGMA foreign_keys = ON;");db.run(`CREATE TABLE IF NOT EXISTS Matches(MatchId INTEGER PRIMARY KEY AUTOINCREMENT, Date TEXT NOT NULL, Time TEXT NOT NULL);`);db.run(`CREATE TABLE IF NOT EXISTS Games(GameId INTEGER PRIMARY KEY AUTOINCREMENT, MatchId INTEGER NOT NULL, Loser TEXT NOT NULL CHECK(Loser IN ('D','P')), Score INTEGER NOT NULL CHECK(typeof(Score)='integer' AND Score>0), FOREIGN KEY(MatchId) REFERENCES Matches(MatchId));`);await persistDb();}
+async function loadDb(){const store=await idbOpen();const bytes=await new Promise((resolve,reject)=>{const tx=store.transaction("files","readonly");const req=tx.objectStore("files").get(DB_KEY);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});store.close();if(bytes)db=new SQL.Database(new Uint8Array(bytes));else db=new SQL.Database();db.run("PRAGMA foreign_keys = ON;");db.run(`CREATE TABLE IF NOT EXISTS Matches(MatchId INTEGER PRIMARY KEY AUTOINCREMENT, Date TEXT NOT NULL, Time TEXT NOT NULL);`);db.run(`CREATE TABLE IF NOT EXISTS Games(GameId INTEGER PRIMARY KEY AUTOINCREMENT, MatchId INTEGER NOT NULL, Loser TEXT NOT NULL CHECK(Loser IN ('D','P')), Score INTEGER NOT NULL CHECK(typeof(Score)='integer' AND Score>0), FOREIGN KEY(MatchId) REFERENCES Matches(MatchId));`);
+// One-time b1v22 initialization: clear prior match/game data and reset AUTOINCREMENT counters.
+// The marker prevents this reset from repeating on subsequent launches.
+const resetKey="unoapp-b1v22-database-reset-done";
+if(localStorage.getItem(resetKey)!=="yes"){
+ db.run("BEGIN TRANSACTION;");
+ try{
+  db.run("DELETE FROM Games;");
+  db.run("DELETE FROM Matches;");
+  db.run("DELETE FROM sqlite_sequence WHERE name IN ('Games','Matches');");
+  db.run("COMMIT;");
+  await persistDb();
+  localStorage.setItem(resetKey,"yes");
+ }catch(e){try{db.run("ROLLBACK;");}catch(_){}throw e;}
+}else{await persistDb();}
+}
 function appAlert(message){alert("The UNO app says: "+message);}
 function appConfirm(message){return confirm("The UNO app says: "+message);}
 function rows(sql,params=[]){const stmt=db.prepare(sql);stmt.bind(params);const out=[];while(stmt.step())out.push(stmt.getAsObject());stmt.free();return out;}
@@ -379,7 +394,7 @@ $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v21",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v22",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
