@@ -41,12 +41,19 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 .timecell{background:#ffeb65;cursor:pointer;font-weight:bold}
 .timecell button{border:0;background:transparent;font:inherit;width:100%;text-align:left;cursor:pointer}
 .small{font-size:12px;color:#555}
+
+#dateDialog{border:0;border-radius:12px;padding:20px;max-width:calc(100% - 32px);width:340px;box-shadow:0 12px 40px #0005}
+#dateDialog::backdrop{background:#0008}
+#dateDialog h2{margin:0 0 8px;color:var(--red);font-size:20px}
+#dateDialog p{margin:0 0 14px}
+#matchDate{width:100%;min-height:44px;margin-bottom:16px}
+.dialogActions{display:flex;justify-content:flex-end;gap:8px}
 @media(max-width:480px){nav button{padding:8px 10px;font-size:14px}.titleline{grid-template-columns:48px 1fr 25px}#summary{font-size:12px}th,td{padding:6px;font-size:13px}}
 </style>
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v1</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
+ <div class="titleline"><div class="version">b1v2</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -58,6 +65,15 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
  <div id="statusMessage">Let's Play UNO!</div>
  <div id="summary">Games played: 0 &nbsp; | &nbsp; Don's score: 0 &nbsp; | &nbsp; Paula's loses: 0</div>
 </section>
+<dialog id="dateDialog" aria-labelledby="dateDialogTitle">
+ <h2 id="dateDialogTitle">New Match Date</h2>
+ <p>Select the date for this match.</p>
+ <input id="matchDate" type="date" required>
+ <div class="dialogActions">
+  <button type="button" class="secondary" id="cancelNewMatch">Cancel</button>
+  <button type="button" class="action" id="confirmNewMatch">Continue</button>
+ </div>
+</dialog>
 <main id="displayArea">
  <img id="hero" src="uno-reverse-pack.jpg" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
@@ -84,13 +100,34 @@ function updateMessage(){const m=getLatestMatch();const active=m&&isContinuing(m
 function hideScreens(){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("visible"));$("hero").style.display="none";$("heroButton").style.display="none";}
 function showHome(){hideScreens();$("hero").style.display="block";$("heroButton").style.display="block";activeMenu=null;document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));$("matchesSubnav").classList.remove("show");updateMessage();}
 function selectMenu(name){activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");}updateMessage();}
-function startOrContinue(){let m=activeMatch();if(!m){const d=new Date();const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;const time=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;db.run("INSERT INTO Matches(Date,Time) VALUES(?,?)",[date,time]);persistDb().then(()=>{m=getLatestMatch();currentMatchId=m.MatchId;selectMenu("games");});}else{currentMatchId=m.MatchId;selectMenu("games");}}
+function startOrContinue(){
+ let m=activeMatch();
+ if(m){currentMatchId=m.MatchId;selectMenu("games");return;}
+ const d=new Date();
+ $("matchDate").value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+ if(typeof $("dateDialog").showModal==="function") $("dateDialog").showModal();
+ else {const chosen=prompt("Enter match date (YYYY-MM-DD):",$("matchDate").value);if(chosen)createMatchWithDate(chosen);}
+}
+async function createMatchWithDate(date){
+ if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)){alert("Please select a valid match date.");return;}
+ const parsed=new Date(date+"T12:00:00");
+ if(Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==date){alert("Please select a valid calendar date.");return;}
+ const d=new Date();
+ const time=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+ await run("INSERT INTO Matches(Date,Time) VALUES(?,?)",[date,time]);
+ const m=getLatestMatch();currentMatchId=m.MatchId;
+ $("dateDialog").close();
+ selectMenu("games");
+}
 function showMatches(){hideScreens();$("matchesScreen").classList.add("visible");const matches=rows("SELECT * FROM Matches ORDER BY Date DESC, Time DESC, MatchId DESC");if(!matches.length){$("matchesTable").innerHTML='<div class="notice">No matches recorded.</div>';return;}let html='<table><thead><tr><th>Date</th>';matches.forEach(m=>html+=`<th>${escapeHtml(m.Date)}</th>`);html+='</tr></thead><tbody><tr><th>Time</th>';matches.forEach(m=>html+=`<td class="timecell"><button data-match="${m.MatchId}" aria-label="Open match ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}">${escapeHtml(m.Time)}</button></td>`);html+='</tr>';const gamesByMatch=matches.map(m=>rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]));const max=Math.max(0,...gamesByMatch.map(a=>a.length));for(let i=0;i<max;i++){html+=`<tr><th>Game ${i+1}</th>`;gamesByMatch.forEach(gs=>{const g=gs[i];html+=`<td>${g?escapeHtml(g.Loser)+" — "+escapeHtml(g.Score):""}</td>`;});html+='</tr>';}html+='</tbody></table><p class="small">Select a yellow time cell to review that match.</p>';$("matchesTable").innerHTML=html;$("matchesTable").querySelectorAll("button[data-match]").forEach(b=>b.addEventListener("click",()=>{currentMatchId=Number(b.dataset.match);selectMenu("games");}));}
 function showGames(){hideScreens();$("gamesScreen").classList.add("visible");const m= currentMatchId ? rows("SELECT * FROM Matches WHERE MatchId=?",[currentMatchId])[0] : activeMatch();if(!m){$("gameScreenContent").innerHTML='<div class="notice">No active match. Press the UNO graphic to begin a match.</div>';return;}currentMatchId=m.MatchId;const t=matchTotals(m.MatchId);const ended=!(Number(t.don)<300&&Number(t.paula)<300);const gs=rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]);let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}<br>Games played: ${t.n}<br>Don's score: ${t.don}<br>Paula's score: ${t.paula}${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;if(!ended){html+=`<h3>Record completed game</h3><div class="formrow"><label for="loser">Loser:</label><select id="loser"><option value="D">D — Don</option><option value="P">P — Paula</option></select><label for="score">Score:</label><input id="score" type="number" min="1" step="1" inputmode="numeric" placeholder="Points" style="width:110px"><button class="action" id="saveGame">Save Game</button></div>`;}html+='<h3>Games in this match</h3>';if(!gs.length)html+='<p>No games recorded yet.</p>';else{html+='<table><thead><tr><th>Game</th><th>Loser</th><th>Score</th></tr></thead><tbody>';gs.forEach((g,i)=>html+=`<tr><td>${i+1}</td><td>${escapeHtml(g.Loser==="D"?"Don":"Paula")}</td><td>${g.Score}</td></tr>`);html+='</tbody></table>';}$("gameScreenContent").innerHTML=html;const save=$("saveGame");if(save)save.addEventListener("click",async()=>{const loser=$("loser").value;const score=Number($("score").value);if(!Number.isInteger(score)||score<=0){alert("Enter a positive whole-number score.");return;}await run("INSERT INTO Games(MatchId,Loser,Score) VALUES(?,?,?)",[currentMatchId,loser,score]);updateMessage();showGames();});}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>selectMenu(b.dataset.menu)));
 $("listMatches").addEventListener("click",showMatches);
 $("heroButton").addEventListener("click",startOrContinue);
+$("confirmNewMatch").addEventListener("click",()=>{const date=$("matchDate").value;if(!date){alert("Please select a match date.");return;}createMatchWithDate(date).catch(e=>alert("Could not create match: "+e.message));});
+$("cancelNewMatch").addEventListener("click",()=> $("dateDialog").close());
+$("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 </script>
