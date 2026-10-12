@@ -59,7 +59,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v3</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
+ <div class="titleline"><div class="version">b1v4</div><h1>U&nbsp; N O&nbsp; !</h1><div class="gear" aria-label="Settings">⚙</div></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -115,7 +115,7 @@ function startOrContinue(){
  else {const chosen=prompt("Enter match date (YYYY-MM-DD):",$("matchDate").value);if(chosen)createMatchWithDate(chosen);}
 }
 async function createMatchWithDate(date){
- if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)){alert("Please select a valid match date.");return;}
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert("Please select a valid match date.");return;}
  const parsed=new Date(date+"T12:00:00");
  if(Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==date){alert("Please select a valid calendar date.");return;}
  const d=new Date();

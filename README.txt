@@ -1,6 +1,8 @@
-UnoApp b1v4
-===========
+UnoApp b1v4 — corrected package
+===============================
 
-Fix: New Match Date validation now correctly accepts the ISO date value returned by the browser calendar control (YYYY-MM-DD). The prior build accidentally double-escaped the digit pattern and rejected valid dates.
+This package corrects two errors in the previous b1v4 delivery:
+- The visible version label is b1v4.
+- Match date validation correctly accepts the YYYY-MM-DD value returned by the HTML date control.
 
-Upload the contents of this folder to the root of the GitHub Pages repository. Keep the same site origin/browser profile to retain the locally stored UnoDB database. After deployment, reload the site. If the old version remains cached, close/reopen the site or clear cached files only; do not clear site data.
+Upload the files INSIDE this folder to the root of the existing GitHub Pages repository, replacing index.html, sw.js, manifest.json, and the image. Verify that GitHub shows index.html changed and that it contains b1v4.
