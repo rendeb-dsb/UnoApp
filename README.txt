@@ -1,8 +1,7 @@
-UnoApp b1v6
-===========
+UnoApp b1v7
 
-Fix: New-match date validation now parses the YYYY-MM-DD input value using split fields rather than a regular expression. This avoids the escaping bug that caused a valid date to be rejected.
+This build fixes the service-worker routing for the normal GitHub Pages root address. The app root is now handled network-first, like index.html, so an older cached root page should not mask the current build. The service worker uses a new cache name and removes older unoapp-* caches when activated.
 
-Also increments the app and service-worker cache version to b1v6 and requests fresh app-shell files.
+The SQLite database remains in IndexedDB; this update does not intentionally clear or modify it.
 
-Upload all files in this folder to the GitHub Pages publishing root. The date shown on Android may look like MM/DD/YYYY; the underlying input value should be YYYY-MM-DD.
+To install: upload the contents of this folder to the root of the GitHub repository used by GitHub Pages. Then open https://rendeb-dsb.github.io/UnoApp/ and confirm the header displays b1v7.
