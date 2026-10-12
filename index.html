@@ -71,7 +71,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v10</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v11</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -93,7 +93,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
  </div>
 </dialog>
 <dialog id="gameOverDialog" aria-labelledby="gameOverTitle">
- <h2 id="gameOverTitle">The Uno App says:</h2>
+ <h2 id="gameOverTitle">The UNO app says:</h2>
  <p id="gameOverMessage"></p>
  <div class="dialogActions"><button type="button" class="action" id="gameOverOk">Ok</button></div>
 </dialog>
@@ -111,7 +111,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
  <button id="heroButton" aria-label="Start or continue match"></button>
  <section id="matchesScreen" class="screen"><h2>Matches</h2><div id="matchesTable"></div></section>
  <section id="gamesScreen" class="screen"><h2>Games</h2><div id="gameScreenContent"></div></section>
- <section id="statsScreen" class="screen"><h2>Stats</h2><div id="statsContent" class="notice">Statistics will be developed in a later build.</div></section>
+ <section id="statsScreen" class="screen"><h2>Stats</h2><div id="statsContent" class="notice"></div></section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script>
@@ -122,6 +122,8 @@ const $=id=>document.getElementById(id);
 function idbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open("UnoAppStorage",1);req.onupgradeneeded=()=>req.result.createObjectStore("files");req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function persistDb(){const bytes=db.export();const store=await idbOpen();await new Promise((resolve,reject)=>{const tx=store.transaction("files","readwrite");tx.objectStore("files").put(bytes,DB_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});store.close();}
 async function loadDb(){const store=await idbOpen();const bytes=await new Promise((resolve,reject)=>{const tx=store.transaction("files","readonly");const req=tx.objectStore("files").get(DB_KEY);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});store.close();if(bytes)db=new SQL.Database(new Uint8Array(bytes));else db=new SQL.Database();db.run("PRAGMA foreign_keys = ON;");db.run(`CREATE TABLE IF NOT EXISTS Matches(MatchId INTEGER PRIMARY KEY AUTOINCREMENT, Date TEXT NOT NULL, Time TEXT NOT NULL);`);db.run(`CREATE TABLE IF NOT EXISTS Games(GameId INTEGER PRIMARY KEY AUTOINCREMENT, MatchId INTEGER NOT NULL, Loser TEXT NOT NULL CHECK(Loser IN ('D','P')), Score INTEGER NOT NULL CHECK(typeof(Score)='integer' AND Score>0), FOREIGN KEY(MatchId) REFERENCES Matches(MatchId));`);await persistDb();}
+function appAlert(message){alert("The UNO app says: "+message);}
+function appConfirm(message){return confirm("The UNO app says: "+message);}
 function rows(sql,params=[]){const stmt=db.prepare(sql);stmt.bind(params);const out=[];while(stmt.step())out.push(stmt.getAsObject());stmt.free();return out;}
 function run(sql,params=[]){db.run(sql,params);return persistDb();}
 function getLatestMatch(){return rows("SELECT * FROM Matches ORDER BY MatchId DESC LIMIT 1")[0]||null;}
@@ -131,7 +133,17 @@ function activeMatch(){const m=getLatestMatch();return m&&isContinuing(m.MatchId
 function updateMessage(){const m=getLatestMatch();const active=m&&isContinuing(m.MatchId)?m:null;if(!active){$("statusMessage").textContent="Let's Play UNO!";$("summary").textContent="Games played: 0  |  Don's score: 0  |  Paula's loses: 0";currentMatchId=null;return;}currentMatchId=active.MatchId;const t=matchTotals(active.MatchId);$("statusMessage").textContent="Match underway";$("summary").textContent=`Games played: ${t.n}  |  Don's score: ${t.don}  |  Paula's loses: ${t.paula}`;}
 function hideScreens(){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("visible"));$("hero").style.display="none";$("heroButton").style.display="none";}
 function showHome(){$("messageArea").style.display="block";hideScreens();$("hero").style.display="block";$("heroButton").style.display="block";activeMenu=null;document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));$("matchesSubnav").classList.remove("show");updateMessage();}
-function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");}updateMessage();}
+function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");showStats();}updateMessage();}
+function showStats(){
+ const matches=Number(rows("SELECT COUNT(*) AS n FROM Matches")[0].n);
+ const games=Number(rows("SELECT COUNT(*) AS n FROM Games")[0].n);
+ const average=matches? (games/matches).toFixed(2):"0.00";
+ const donMatchLosses=Number(rows("SELECT COUNT(*) AS n FROM Matches m WHERE COALESCE((SELECT SUM(g.Score) FROM Games g WHERE g.MatchId=m.MatchId AND g.Loser='D'),0)>=300")[0].n);
+ const paulaMatchLosses=Number(rows("SELECT COUNT(*) AS n FROM Matches m WHERE COALESCE((SELECT SUM(g.Score) FROM Games g WHERE g.MatchId=m.MatchId AND g.Loser='P'),0)>=300")[0].n);
+ const donGameLosses=Number(rows("SELECT COUNT(*) AS n FROM Games WHERE Loser='D'")[0].n);
+ const paulaGameLosses=Number(rows("SELECT COUNT(*) AS n FROM Games WHERE Loser='P'")[0].n);
+ $("statsContent").innerHTML=`<div>Average number of games per match: <b>${average}</b></div><div>Number of match losses for Don: <b>${donMatchLosses}</b></div><div>Number of match losses for Paula: <b>${paulaMatchLosses}</b></div><div>Number of game losses for Don: <b>${donGameLosses}</b></div><div>Number of game losses for Paula: <b>${paulaGameLosses}</b></div><p class="small">Average = total recorded games (${games}) ÷ total matches (${matches}). A match loss is counted when that player's accumulated game-loss scores reach 300 or more.</p>`;
+}
 function startOrContinue(){
  let m=activeMatch();
  if(m){currentMatchId=m.MatchId;selectedLoser=null;selectMenu("games");return;}
@@ -146,15 +158,15 @@ async function createMatchWithDate(date){
  // date, but an HTML date input's .value is expected to be YYYY-MM-DD.
  const parts=date.split("-");
  if(parts.length!==3||parts[0].length!==4||parts[1].length!==2||parts[2].length!==2){
-   alert("Please select a valid match date.");return;
+   appAlert("Please select a valid match date.");return;
  }
  const year=Number(parts[0]), month=Number(parts[1]), day=Number(parts[2]);
  if(!Number.isInteger(year)||!Number.isInteger(month)||!Number.isInteger(day)||year<1||month<1||month>12||day<1||day>31){
-   alert("Please select a valid match date.");return;
+   appAlert("Please select a valid match date.");return;
  }
  const parsed=new Date(Date.UTC(year,month-1,day));
  if(parsed.getUTCFullYear()!==year||parsed.getUTCMonth()!==month-1||parsed.getUTCDate()!==day){
-   alert("Please select a valid calendar date.");return;
+   appAlert("Please select a valid calendar date.");return;
  }
  date=parts.join("-");
  const d=new Date();
@@ -203,7 +215,6 @@ function showGames(){
  const ended=!(Number(t.don)<300&&Number(t.paula)<300);
  const gs=rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]);
  let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}<br>Games played: ${t.n}<br>Don's score: ${t.don}<br>Paula's score: ${t.paula}${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;
- if(gs.length) html+='<div class="finishRow"><button class="action" id="finishGame">Finish</button></div>';
  if(!ended){
    html+='<h3>Record completed game</h3><div class="formrow"><label>Loser:</label><div class="loserButtons" role="group" aria-label="Select loser"><button type="button" class="loserButton" id="loserDon" aria-pressed="false">Don</button><button type="button" class="loserButton" id="loserPaula" aria-pressed="false">Paula</button></div><label for="score">Score:</label><input id="score" type="number" min="1" step="1" inputmode="numeric" placeholder="Points" disabled style="width:55px"><button class="action" id="saveGame" disabled>Save</button></div>';
  }
@@ -231,9 +242,9 @@ function showGames(){
    $("loserPaula").addEventListener("click",()=>setLoser("P"));
    scoreInput.addEventListener("input",updateSaveState);
    save.addEventListener("click",async()=>{
-     if(!selectedLoser){alert("Select Don or Paula as the loser.");return;}
+     if(!selectedLoser){appAlert("Select Don or Paula as the loser.");return;}
      const score=Number(scoreInput.value);
-     if(!Number.isInteger(score)||score<=0){alert("Enter a positive whole-number score.");return;}
+     if(!Number.isInteger(score)||score<=0){appAlert("Enter a positive whole-number score.");return;}
      save.disabled=true;
      try{
        const savedMatchId=currentMatchId;
@@ -246,13 +257,11 @@ function showGames(){
        if(defeatedPlayer){
          $("gameOverMessage").textContent=defeatedPlayer+" lost!";
          if(typeof $("gameOverDialog").showModal==="function")$("gameOverDialog").showModal();
-         else if(confirm("The Uno App says: "+defeatedPlayer+" lost!"))await startNewMatchNow();
+         else if(appConfirm(defeatedPlayer+" lost!"))await startNewMatchNow();
        }
-     }catch(e){save.disabled=false;alert("Could not save game: "+e.message);}
+     }catch(e){save.disabled=false;appAlert("Could not save game: "+e.message);}
    });
  }
- const finish=$("finishGame");
- if(finish)finish.addEventListener("click",()=>{selectedLoser=null;selectMenu("matches");showMatches();});
 }
 function localTimestampParts(){
  const d=new Date();
@@ -267,11 +276,11 @@ async function exportScores(){
  const payload=JSON.stringify(exportPayload(),null,2);const stamp=localTimestampParts();const filename=`UNO-${stamp.date}-${stamp.time}.JSON`;
  const blob=new Blob([payload],{type:"application/json"});
  if(typeof window.showSaveFilePicker==="function"){
-   try{const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:"UNO score backup (JSON)",accept:{"application/json":[".JSON",".json"]}}]});const writable=await handle.createWritable();await writable.write(blob);await writable.close();alert("Scores exported successfully.");return;}
+   try{const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:"UNO score backup (JSON)",accept:{"application/json":[".JSON",".json"]}}]});const writable=await handle.createWritable();await writable.write(blob);await writable.close();appAlert("Scores exported successfully.");return;}
    catch(e){if(e&&e.name==="AbortError")return;console.warn("Save picker unavailable; using download instead.",e);}
  }
  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
- alert("The JSON backup was prepared for download. Choose your Downloads folder or another available save location in the browser.");
+ appAlert("The JSON backup was prepared for download. Choose your Downloads folder or another available save location in the browser.");
 }
 function validateImportPayload(data){
  if(!data||typeof data!=="object"||Array.isArray(data)||data.format!=="UnoAppScores"||data.formatVersion!==1||!Array.isArray(data.Matches)||!Array.isArray(data.Games))throw new Error("This is not a supported UnoApp score backup.");
@@ -284,9 +293,9 @@ function validateImportPayload(data){
 }
 async function importScoresFile(file){
  if(!file) return;
- if(!/^UNO-.+\.JSON$/i.test(file.name)){alert('Please select a backup file named like "UNO-YYYYMMDD-HHMMSS.JSON".');return;}
- let data;try{data=JSON.parse(await file.text());validateImportPayload(data);}catch(e){alert("Import cancelled. "+(e.message||"The selected file is not valid JSON."));return;}
- if(!confirm(`This backup contains ${data.Matches.length} match record(s) and ${data.Games.length} game record(s). Importing will REPLACE all existing UnoApp match and game records. Continue?`))return;
+ if(!/^UNO-.+\.JSON$/i.test(file.name)){appAlert('Please select a backup file named like "UNO-YYYYMMDD-HHMMSS.JSON".');return;}
+ let data;try{data=JSON.parse(await file.text());validateImportPayload(data);}catch(e){appAlert("Import cancelled. "+(e.message||"The selected file is not valid JSON."));return;}
+ if(!appConfirm(`This backup contains ${data.Matches.length} match record(s) and ${data.Games.length} game record(s). Importing will REPLACE all existing UnoApp match and game records. Continue?`))return;
  const previousBytes=db.export();
  try{
   db.run("BEGIN TRANSACTION");
@@ -295,41 +304,41 @@ async function importScoresFile(file){
   for(const g of data.Games)db.run("INSERT INTO Games(GameId,MatchId,Loser,Score) VALUES(?,?,?,?)",[g.GameId,g.MatchId,g.Loser,g.Score]);
   db.run("COMMIT");
   try{await persistDb();}catch(e){db.close();db=new SQL.Database(new Uint8Array(previousBytes));db.run("PRAGMA foreign_keys = ON;");throw e;}
-  currentMatchId=null;selectedLoser=null;showHome();alert("Scores imported successfully. Existing match and game records were replaced.");
- }catch(e){try{db.run("ROLLBACK");}catch(_){}alert("Import failed; the existing records were preserved. "+e.message);}
+  currentMatchId=null;selectedLoser=null;showHome();appAlert("Scores imported successfully. Existing match and game records were replaced.");
+ }catch(e){try{db.run("ROLLBACK");}catch(_){}appAlert("Import failed; the existing records were preserved. "+e.message);}
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>selectMenu(b.dataset.menu)));
 $("listMatches").addEventListener("click",showMatches);
 $("heroButton").addEventListener("click",startOrContinue);
 $("confirmNewMatch").addEventListener("click",()=>{const date=$("matchDate").value;
- if(!date){alert("Please select a match date.");return;}
- createMatchWithDate(date).catch(e=>alert("Could not create match: "+e.message));});
+ if(!date){appAlert("Please select a match date.");return;}
+ createMatchWithDate(date).catch(e=>appAlert("Could not create match: "+e.message));});
 $("cancelNewMatch").addEventListener("click",()=> $("dateDialog").close());
 $("gameOverOk").addEventListener("click",async()=>{
  try{$("gameOverDialog").close();await startNewMatchNow();}
- catch(e){alert("Could not start the next match: "+e.message);}
+ catch(e){appAlert("Could not start the next match: "+e.message);}
 });
 $("gearButton").addEventListener("click",()=>{
  document.querySelectorAll('input[name="scoreAction"]').forEach(r=>r.checked=false);
  $("continueScoresAction").disabled=true;
  if(typeof $("scoresDialog").showModal==="function")$("scoresDialog").showModal();
- else alert('Please use a browser that supports the UnoApp settings dialog.');
+ else appAlert('Please use a browser that supports the UnoApp settings dialog.');
 });
 document.querySelectorAll('input[name="scoreAction"]').forEach(r=>r.addEventListener("change",()=>{$("continueScoresAction").disabled=!document.querySelector('input[name="scoreAction"]:checked');}));
 $("cancelScoresAction").addEventListener("click",()=>$("scoresDialog").close());
 $("continueScoresAction").addEventListener("click",async()=>{
  const choice=document.querySelector('input[name="scoreAction"]:checked');if(!choice)return;
  $("scoresDialog").close();
- if(choice.value==="export"){try{await exportScores();}catch(e){alert("Could not export scores: "+e.message);}}
+ if(choice.value==="export"){try{await exportScores();}catch(e){appAlert("Could not export scores: "+e.message);}}
  else{$("importFileInput").value="";$("importFileInput").click();}
 });
-$("importFileInput").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];try{await importScoresFile(file);}catch(err){alert("Could not import scores: "+err.message);}});
+$("importFileInput").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];try{await importScoresFile(file);}catch(err){appAlert("Could not import scores: "+err.message);}});
 $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v10",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v11",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
