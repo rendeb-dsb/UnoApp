@@ -46,7 +46,8 @@ label{font-weight:700}input,select{font:inherit;padding:8px;border:1px solid #aa
 .loserButton:disabled{opacity:1}
 .action:disabled{opacity:.45}
 .secondary{border:1px solid #aaa;border-radius:6px;background:#eee;color:#222;padding:9px 14px;font-weight:700}
-table{border-collapse:collapse;width:100%;background:white}th,td{border:1px solid #ccc;padding:7px 8px;text-align:left;white-space:nowrap}th{background:#f2e7e8}
+table{border-collapse:collapse;width:100%;background:white}
+.changedGameRow td{font-weight:800;color:#16833b}th,td{border:1px solid #ccc;padding:7px 8px;text-align:left;white-space:nowrap}th{background:#f2e7e8}
 #matchesTable{overflow:auto}
 .matchBlock{border-bottom:1px solid #ddd;padding:0 0 8px;margin:0 0 8px}
 .matchBlock:last-child{border-bottom:0;margin-bottom:0}
@@ -77,7 +78,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v22</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v23</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -113,7 +114,7 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 </dialog>
 <input id="importFileInput" type="file" accept=".json,application/json" hidden>
 <main id="displayArea">
- <img id="hero" src="./uno-reverse-pack.jpg?v=b1v22" alt="UNO Reverse Pack">
+ <img id="hero" src="./uno-reverse-pack.jpg?v=b1v23" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
  <section id="matchesScreen" class="screen"><h2>Matches</h2><div id="matchesTable"></div></section>
  <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span></div><div id="gameScreenContent"></div></section>
@@ -123,12 +124,26 @@ table{border-collapse:collapse;width:100%;background:white}th,td{border:1px soli
 <script>
 "use strict";
 const DB_NAME="UnoDB", DB_KEY="sqlite-bytes";
-let db=null, SQL=null, currentMatchId=null, activeMenu=null, selectedLoser=null;
+let db=null, SQL=null, currentMatchId=null, activeMenu=null, selectedLoser=null, selectedGameId=null;
+const changedGameIds=new Set();
 const $=id=>document.getElementById(id);
 function idbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open("UnoAppStorage",1);req.onupgradeneeded=()=>req.result.createObjectStore("files");req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function persistDb(){const bytes=db.export();const store=await idbOpen();await new Promise((resolve,reject)=>{const tx=store.transaction("files","readwrite");tx.objectStore("files").put(bytes,DB_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});store.close();}
-async function loadDb(){const store=await idbOpen();const bytes=await new Promise((resolve,reject)=>{const tx=store.transaction("files","readonly");const req=tx.objectStore("files").get(DB_KEY);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});store.close();if(bytes)db=new SQL.Database(new Uint8Array(bytes));else db=new SQL.Database();db.run("PRAGMA foreign_keys = ON;");db.run(`CREATE TABLE IF NOT EXISTS Matches(MatchId INTEGER PRIMARY KEY AUTOINCREMENT, Date TEXT NOT NULL, Time TEXT NOT NULL);`);db.run(`CREATE TABLE IF NOT EXISTS Games(GameId INTEGER PRIMARY KEY AUTOINCREMENT, MatchId INTEGER NOT NULL, Loser TEXT NOT NULL CHECK(Loser IN ('D','P')), Score INTEGER NOT NULL CHECK(typeof(Score)='integer' AND Score>0), FOREIGN KEY(MatchId) REFERENCES Matches(MatchId));`);
-// One-time b1v22 initialization: clear prior match/game data and reset AUTOINCREMENT counters.
+async function loadDb(){const store=await idbOpen();const bytes=await new Promise((resolve,reject)=>{const tx=store.transaction("files","readonly");const req=tx.objectStore("files").get(DB_KEY);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});store.close();if(bytes)db=new SQL.Database(new Uint8Array(bytes));else db=new SQL.Database();db.run("PRAGMA foreign_keys = ON;");db.run(`CREATE TABLE IF NOT EXISTS Matches(MatchId INTEGER PRIMARY KEY AUTOINCREMENT, Date TEXT NOT NULL, Time TEXT NOT NULL);`);db.run(`CREATE TABLE IF NOT EXISTS Games(GameId INTEGER PRIMARY KEY AUTOINCREMENT, MatchId INTEGER NOT NULL, Loser TEXT NOT NULL CHECK(Loser IN ('D','P')), Score INTEGER NOT NULL CHECK(typeof(Score)='integer' AND Score>=0), FOREIGN KEY(MatchId) REFERENCES Matches(MatchId));`);
+// Migrate older databases whose CHECK constraint disallowed a score of zero, preserving all existing IDs and records.
+const gamesSchema=rows("SELECT sql FROM sqlite_master WHERE type='table' AND name='Games'")[0]?.sql||"";
+if(/Score>0/.test(gamesSchema)){
+ db.run("PRAGMA foreign_keys=OFF;");
+ db.run("BEGIN TRANSACTION;");
+ try{
+  db.run("CREATE TABLE Games_new(GameId INTEGER PRIMARY KEY AUTOINCREMENT, MatchId INTEGER NOT NULL, Loser TEXT NOT NULL CHECK(Loser IN ('D','P')), Score INTEGER NOT NULL CHECK(typeof(Score)='integer' AND Score>=0), FOREIGN KEY(MatchId) REFERENCES Matches(MatchId));");
+  db.run("INSERT INTO Games_new(GameId,MatchId,Loser,Score) SELECT GameId,MatchId,Loser,Score FROM Games;");
+  db.run("DROP TABLE Games;");db.run("ALTER TABLE Games_new RENAME TO Games;");
+  db.run("COMMIT;");
+ }catch(e){try{db.run("ROLLBACK;");}catch(_){}throw e;}
+ db.run("PRAGMA foreign_keys=ON;");
+}
+// One-time b1v23 initialization: clear prior match/game data and reset AUTOINCREMENT counters.
 // The marker prevents this reset from repeating on subsequent launches.
 const resetKey="unoapp-b1v22-database-reset-done";
 if(localStorage.getItem(resetKey)!=="yes"){
@@ -264,40 +279,52 @@ function showGames(){
  $("activeTurn").textContent=activePlayer+"'s turn";
  let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}<br>Games played: ${t.n}<div class="scoreSummaryLine"><span>Don's score: ${t.don}</span><span>Don's losses: ${donLosses}</span></div><div class="scoreSummaryLine"><span>Paula's score: ${t.paula}</span><span>Paula's losses: ${paulaLosses}</span></div>${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;
  if(!ended){
-   html+='<h3>Record completed game</h3><div class="formrow"><label>Loser:</label><div class="loserButtons" role="group" aria-label="Select loser"><button type="button" class="loserButton" id="loserDon" aria-pressed="false">Don</button><button type="button" class="loserButton" id="loserPaula" aria-pressed="false">Paula</button></div><label for="score">Score:</label><input id="score" type="number" min="1" step="1" inputmode="numeric" placeholder="Points" disabled style="width:70px"><button class="action" id="saveGame" disabled>Save</button></div>';
+   html+='<h3>Record completed game</h3><div class="formrow"><label>Loser:</label><div class="loserButtons" role="group" aria-label="Select loser"><button type="button" class="loserButton" id="loserDon" aria-pressed="false">Don</button><button type="button" class="loserButton" id="loserPaula" aria-pressed="false">Paula</button></div><label for="score">Score:</label><input id="score" type="number" min="0" step="1" inputmode="numeric" placeholder="Points" disabled style="width:70px"><button class="action" id="saveGame" disabled>Save</button><button class="secondary" id="changeGame" disabled>Change</button></div>';
  }
  html+='<h3>Games in this match</h3>';
  if(!gs.length)html+='<p>No games recorded yet.</p>';
- else{html+='<table><thead><tr><th>Game</th><th>Loser</th><th>Score</th></tr></thead><tbody>';gs.forEach((g,i)=>html+=`<tr><td>${i+1}</td><td>${escapeHtml(g.Loser==="D"?"Don":"Paula")}</td><td>${g.Score}</td></tr>`);html+='</tbody></table>';}
+ else{html+='<table><thead><tr><th style="width:30px;padding:4px"></th><th>Game</th><th>Loser</th><th>Score</th></tr></thead><tbody>';gs.forEach((g,i)=>{const changed=changedGameIds.has(Number(g.GameId));html+=`<tr${changed?' class="changedGameRow"':''}><td style="width:30px;padding:4px;text-align:center"><input type="radio" name="selectedGame" class="gameSelect" value="${g.GameId}" aria-label="Select game ${i+1}" style="width:16px;height:16px;margin:0"></td><td>${i+1}</td><td>${escapeHtml(g.Loser==="D"?"Don":"Paula")}</td><td>${g.Score}</td></tr>`;});html+='</tbody></table>';}
  $("gameScreenContent").innerHTML=html;
- const scoreInput=$("score"), save=$("saveGame");
+ const scoreInput=$("score"), save=$("saveGame"), change=$("changeGame");
  function setLoser(loser){
    selectedLoser=loser;
    $("loserDon").classList.toggle("selected",loser==="D");
    $("loserPaula").classList.toggle("selected",loser==="P");
    $("loserDon").setAttribute("aria-pressed",String(loser==="D"));
    $("loserPaula").setAttribute("aria-pressed",String(loser==="P"));
-   scoreInput.disabled=false;scoreInput.focus();
-   updateSaveState();
+   scoreInput.disabled=false;updateSaveState();
  }
  function updateSaveState(){
    if(!save)return;
    const score=Number(scoreInput.value);
-   save.disabled=!(selectedLoser&&scoreInput.value.trim()!==""&&Number.isInteger(score)&&score>0);
+   save.disabled=!(selectedLoser&&scoreInput.value.trim()!==""&&Number.isInteger(score)&&score>=0);
  }
  if(!ended){
    $("loserDon").addEventListener("click",()=>setLoser("D"));
    $("loserPaula").addEventListener("click",()=>setLoser("P"));
    scoreInput.addEventListener("input",updateSaveState);
+   document.querySelectorAll(".gameSelect").forEach(r=>r.addEventListener("change",()=>{selectedGameId=Number(r.value);change.disabled=false;}));
+   change.addEventListener("click",()=>{
+     if(!selectedGameId)return;
+     const game=rows("SELECT * FROM Games WHERE GameId=? AND MatchId=?",[selectedGameId,currentMatchId])[0];
+     if(!game)return;
+     setLoser(game.Loser);scoreInput.value=String(game.Score);updateSaveState();
+     save.dataset.mode="change";save.textContent="Save";
+   });
    save.addEventListener("click",async()=>{
      if(!selectedLoser){appAlert("Select Don or Paula as the loser.");return;}
      const score=Number(scoreInput.value);
-     if(!Number.isInteger(score)||score<=0){appAlert("Enter a positive whole-number score.");return;}
-     save.disabled=true;
+     if(!Number.isInteger(score)||score<0){appAlert("Enter a whole-number score of zero or greater.");return;}
+     save.disabled=true;change.disabled=true;
      try{
        const savedMatchId=currentMatchId;
-       await run("INSERT INTO Games(MatchId,Loser,Score) VALUES(?,?,?)",[savedMatchId,selectedLoser,score]);
-       selectedLoser=null;updateMessage();showGames();
+       if(save.dataset.mode==="change"&&selectedGameId){
+         await run("UPDATE Games SET Loser=?, Score=? WHERE GameId=? AND MatchId=?",[selectedLoser,score,selectedGameId,savedMatchId]);
+         changedGameIds.add(Number(selectedGameId));
+       }else{
+         await run("INSERT INTO Games(MatchId,Loser,Score) VALUES(?,?,?)",[savedMatchId,selectedLoser,score]);
+       }
+       selectedLoser=null;selectedGameId=null;showGames();updateMessage();showStatsIfVisible();
        const totals=matchTotals(savedMatchId);
        let defeatedPlayer=null;
        if(Number(totals.don)>=300)defeatedPlayer="Don";
@@ -307,10 +334,12 @@ function showGames(){
          if(typeof $("gameOverDialog").showModal==="function")$("gameOverDialog").showModal();
          else if(appConfirm(defeatedPlayer+" lost!"))await startNewMatchNow();
        }
-     }catch(e){save.disabled=false;appAlert("Could not save game: "+e.message);}
+     }catch(e){save.disabled=false;change.disabled=!document.querySelector(".gameSelect:checked");appAlert("Could not save game: "+e.message);}
    });
  }
 }
+function showStatsIfVisible(){if($("statsScreen").classList.contains("visible"))showStats();}
+
 function localTimestampParts(){
  const d=new Date();
  const date=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
@@ -336,7 +365,7 @@ function validateImportPayload(data){
  const validDate=value=>{if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const [y,m,d]=value.split("-").map(Number);const dt=new Date(Date.UTC(y,m-1,d));return dt.getUTCFullYear()===y&&dt.getUTCMonth()===m-1&&dt.getUTCDate()===d;};
  const validTime=value=>typeof value==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(value);
  for(const m of data.Matches){if(!m||!Number.isSafeInteger(m.MatchId)||m.MatchId<=0||matchIds.has(m.MatchId)||!validDate(m.Date)||!validTime(m.Time))throw new Error("The backup contains an invalid or duplicate match record.");matchIds.add(m.MatchId);}
- for(const g of data.Games){if(!g||!Number.isSafeInteger(g.GameId)||g.GameId<=0||gameIds.has(g.GameId)||!Number.isSafeInteger(g.MatchId)||!matchIds.has(g.MatchId)||!['D','P'].includes(g.Loser)||!Number.isSafeInteger(g.Score)||g.Score<=0)throw new Error("The backup contains an invalid game record or a game without a matching match.");gameIds.add(g.GameId);}
+ for(const g of data.Games){if(!g||!Number.isSafeInteger(g.GameId)||g.GameId<=0||gameIds.has(g.GameId)||!Number.isSafeInteger(g.MatchId)||!matchIds.has(g.MatchId)||!['D','P'].includes(g.Loser)||!Number.isSafeInteger(g.Score)||g.Score<0)throw new Error("The backup contains an invalid game record or a game without a matching match.");gameIds.add(g.GameId);}
  return true;
 }
 async function importScoresFile(file){
@@ -394,7 +423,7 @@ $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v22",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v23",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
