@@ -31,13 +31,16 @@ nav button.active{background:var(--red);color:#fff;border-color:var(--red)}
 .screen{display:none;min-height:100%;padding:12px;background:var(--paper)}
 .screen.visible{display:block}
 .screen h2{font-size:19px;margin:0;color:var(--red)}
+#gameScreenContent h3{font-size:16px;margin:5px 0 3px}
+#awakeButton{padding:5px 8px;font-size:12px;white-space:nowrap}
+.screenHeading{margin-bottom:6px}
 .screenHeading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px}
 .screenHeading h2{margin:0}
 #activeTurn{color:#16833b;font-weight:800;text-align:right;white-space:nowrap;font-size:16px}
-.notice{padding:12px;border:1px solid #ddd;border-radius:8px;background:white}
+.notice{padding:7px;border:1px solid #ddd;border-radius:8px;background:white}
 .scoreSummaryLine{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:nowrap}
 .scoreSummaryLine span:last-child{text-align:right;white-space:nowrap}
-.formrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.formrow{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin:3px 0}
 label{font-weight:700}input,select{font:inherit;padding:8px;border:1px solid #aaa;border-radius:5px;max-width:100%}
 .action{border:0;border-radius:6px;background:var(--red);color:#fff;padding:9px 14px;font-weight:700}
 .loserButtons{display:flex;gap:7px}
@@ -78,7 +81,7 @@ table{border-collapse:collapse;width:100%;background:white}
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v23</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v24</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -114,10 +117,10 @@ table{border-collapse:collapse;width:100%;background:white}
 </dialog>
 <input id="importFileInput" type="file" accept=".json,application/json" hidden>
 <main id="displayArea">
- <img id="hero" src="./uno-reverse-pack.jpg?v=b1v23" alt="UNO Reverse Pack">
+ <img id="hero" src="./uno-reverse-pack.jpg?v=b1v24" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
  <section id="matchesScreen" class="screen"><h2>Matches</h2><div id="matchesTable"></div></section>
- <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span></div><div id="gameScreenContent"></div></section>
+ <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span><button type="button" id="awakeButton" class="secondary" aria-pressed="false">Keep screen awake: Off</button></div><div id="gameScreenContent"></div></section>
  <section id="statsScreen" class="screen"><h2>Stats</h2><div id="statsContent" class="notice"></div></section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
@@ -293,6 +296,7 @@ function showGames(){
    $("loserDon").setAttribute("aria-pressed",String(loser==="D"));
    $("loserPaula").setAttribute("aria-pressed",String(loser==="P"));
    scoreInput.disabled=false;updateSaveState();
+   scoreInput.focus();
  }
  function updateSaveState(){
    if(!save)return;
@@ -421,9 +425,30 @@ $("continueScoresAction").addEventListener("click",async()=>{
 $("importFileInput").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];try{await importScoresFile(file);}catch(err){appAlert("Could not import scores: "+err.message);}});
 $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
+let screenWakeLock=null;
+async function setScreenAwake(enable){
+ const button=$("awakeButton");
+ if(!button)return;
+ if(enable){
+  if(!("wakeLock" in navigator)){appAlert("This browser does not support keeping the screen awake from the app. You can increase Screen timeout in your device Settings.");return;}
+  try{
+   screenWakeLock=await navigator.wakeLock.request("screen");
+   screenWakeLock.addEventListener("release",()=>{screenWakeLock=null;button.textContent="Keep screen awake: Off";button.setAttribute("aria-pressed","false");});
+   button.textContent="Keep screen awake: On";button.setAttribute("aria-pressed","true");
+  }catch(e){appAlert("The screen could not be kept awake. Keep UnoApp open and the screen visible, then try again.");}
+ }else{
+  if(screenWakeLock){try{await screenWakeLock.release();}catch(e){} screenWakeLock=null;}
+  button.textContent="Keep screen awake: Off";button.setAttribute("aria-pressed","false");
+ }
+}
+$("awakeButton").addEventListener("click",()=>setScreenAwake(!screenWakeLock));
+document.addEventListener("visibilitychange",async()=>{
+ if(document.visibilityState==="visible"&&$("awakeButton")&&$("awakeButton").getAttribute("aria-pressed")==="true"&&!screenWakeLock){await setScreenAwake(true);}
+});
+
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v23",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v24",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });

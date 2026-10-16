@@ -1,4 +1,4 @@
-const CACHE="unoapp-b1v23";
+const CACHE="unoapp-b1v24";
 const ASSETS=["./","./index.html","./manifest.json","./uno-reverse-pack.jpg"];
 self.addEventListener("install",event=>{
   event.waitUntil((async()=>{await caches.open(CACHE).then(cache=>cache.addAll(ASSETS));await self.skipWaiting();})());
