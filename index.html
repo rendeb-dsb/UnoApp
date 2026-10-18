@@ -36,7 +36,7 @@ nav button.active{background:var(--red);color:#fff;border-color:var(--red)}
 .screenHeading{margin-bottom:6px}
 .screenHeading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px}
 .screenHeading h2{margin:0}
-#activeTurn{color:#16833b;font-weight:800;text-align:right;white-space:nowrap;font-size:16px}
+#activeTurn{color:#16833b;font-weight:800;text-align:right;white-space:nowrap;font-size:19px;line-height:16px;overflow:visible}
 .notice{padding:7px;border:1px solid #ddd;border-radius:8px;background:white}
 .scoreSummaryLine{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:nowrap}
 .scoreSummaryLine span:last-child{text-align:right;white-space:nowrap}
@@ -81,11 +81,12 @@ table{border-collapse:collapse;width:100%;background:white}
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v24</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v25</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
   <button id="menuStats" data-menu="stats">Stats</button>
+  <button id="menuSettings" data-menu="settings">Settings</button>
  </nav>
  <div id="matchesSubnav" class="subnav"><button id="listMatches">List</button><button id="countMatches">Count</button></div>
 </header>
@@ -117,17 +118,21 @@ table{border-collapse:collapse;width:100%;background:white}
 </dialog>
 <input id="importFileInput" type="file" accept=".json,application/json" hidden>
 <main id="displayArea">
- <img id="hero" src="./uno-reverse-pack.jpg?v=b1v24" alt="UNO Reverse Pack">
+ <img id="hero" src="./uno-reverse-pack.jpg?v=b1v25" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
  <section id="matchesScreen" class="screen"><h2>Matches</h2><div id="matchesTable"></div></section>
  <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span><button type="button" id="awakeButton" class="secondary" aria-pressed="false">Keep screen awake: Off</button></div><div id="gameScreenContent"></div></section>
  <section id="statsScreen" class="screen"><h2>Stats</h2><div id="statsContent" class="notice"></div></section>
+ <section id="settingsScreen" class="screen"><h2>Settings</h2><div class="notice" style="margin-top:10px"><label style="display:flex;align-items:center;gap:10px;font-weight:700"><input id="playLostSound" type="checkbox" style="width:20px;height:20px"> Play 'lost' sound</label><p class="small">When Paula loses a match, UnoApp will randomly play one of the sounds in the sounds directory.</p></div></section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script>
 "use strict";
 const DB_NAME="UnoDB", DB_KEY="sqlite-bytes";
 let db=null, SQL=null, currentMatchId=null, activeMenu=null, selectedLoser=null, selectedGameId=null;
+const LOST_SOUND_FILES=["./sounds/Paula_Lost_Again_Loser.mp3","./sounds/Paula_Big_Loser.mp3"];
+const LOST_SOUND_SETTING="unoapp-play-lost-sound";
+function playPaulaLostSound(){if(!$("playLostSound")?.checked)return;const file=LOST_SOUND_FILES[Math.floor(Math.random()*LOST_SOUND_FILES.length)];const audio=new Audio(file);audio.play().catch(e=>console.warn("Lost sound could not play:",e));}
 const changedGameIds=new Set();
 const $=id=>document.getElementById(id);
 function idbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open("UnoAppStorage",1);req.onupgradeneeded=()=>req.result.createObjectStore("files");req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
@@ -172,7 +177,7 @@ function activeMatch(){const m=getLatestMatch();return m&&isContinuing(m.MatchId
 function updateMessage(){$("summary").style.display="none";const m=getLatestMatch();const active=m&&isContinuing(m.MatchId)?m:null;if(!active){$("statusMessage").textContent="Let's Play UNO!";$("summary").textContent="Games played: 0  |  Don's score: 0  |  Paula's loses: 0";currentMatchId=null;return;}currentMatchId=active.MatchId;const t=matchTotals(active.MatchId);$("statusMessage").textContent="Match underway";$("summary").textContent=`Games played: ${t.n}  |  Don's score: ${t.don}  |  Paula's loses: ${t.paula}`;}
 function hideScreens(){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("visible"));$("hero").style.display="none";$("heroButton").style.display="none";}
 function showHome(){$("messageArea").style.display="block";hideScreens();$("hero").style.display="block";$("heroButton").style.display="block";activeMenu=null;document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));$("matchesSubnav").classList.remove("show");updateMessage();}
-function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";$("summary").style.display="none";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");showStats();}updateMessage();}
+function selectMenu(name){$("messageArea").style.display=name==="games"?"none":"block";$("summary").style.display="none";activeMenu=name;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.menu===name));$("matchesSubnav").classList.toggle("show",name==="matches");hideScreens();if(name==="matches")showMatches();if(name==="games")showGames();if(name==="stats"){$("statsScreen").classList.add("visible");showStats();}if(name==="settings")$("settingsScreen").classList.add("visible");updateMessage();}
 function showStats(){
  const matches=Number(rows("SELECT COUNT(*) AS n FROM Matches")[0].n);
  const games=Number(rows("SELECT COUNT(*) AS n FROM Games")[0].n);
@@ -335,6 +340,7 @@ function showGames(){
        else if(Number(totals.paula)>=300)defeatedPlayer="Paula";
        if(defeatedPlayer){
          $("gameOverMessage").textContent=defeatedPlayer+" lost!";
+         if(defeatedPlayer==="Paula")playPaulaLostSound();
          if(typeof $("gameOverDialog").showModal==="function")$("gameOverDialog").showModal();
          else if(appConfirm(defeatedPlayer+" lost!"))await startNewMatchNow();
        }
@@ -390,6 +396,8 @@ async function importScoresFile(file){
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>selectMenu(b.dataset.menu)));
+try{$("playLostSound").checked=localStorage.getItem(LOST_SOUND_SETTING)!=="false";}catch(e){$("playLostSound").checked=true;}
+$("playLostSound").addEventListener("change",()=>{try{localStorage.setItem(LOST_SOUND_SETTING,$("playLostSound").checked?"true":"false");}catch(e){console.warn("Could not save sound setting",e);}});
 $("listMatches").addEventListener("click",showMatches);
 $("countMatches").addEventListener("click",showMatchCount);
 $("heroButton").addEventListener("click",startOrContinue);
@@ -448,7 +456,7 @@ document.addEventListener("visibilitychange",async()=>{
 
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v24",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v25",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });
