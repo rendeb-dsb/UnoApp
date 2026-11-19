@@ -32,13 +32,13 @@ nav button.active{background:var(--red);color:#fff;border-color:var(--red)}
 .screen.visible{display:block}
 .screen h2{font-size:19px;margin:0;color:var(--red)}
 #gameScreenContent h3{font-size:16px;margin:5px 0 3px}
-#awakeButton{padding:5px 8px;font-size:12px;white-space:nowrap}
+
 .screenHeading{margin-bottom:6px}
-.screenHeading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px}
+.screenHeading{display:flex;align-items:baseline;justify-content:center;gap:32px;min-height:27px;margin:0 0 12px}
 .screenHeading h2{margin:0}
 #activeTurn{color:#16833b;font-weight:800;text-align:right;white-space:nowrap;font-size:19px;line-height:16px;overflow:visible}
 .notice{padding:7px;border:1px solid #ddd;border-radius:8px;background:white}
-.scoreSummaryLine{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:nowrap}
+.scoreSummaryLine{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.40fr) minmax(0,.45fr) minmax(0,1.17fr);align-items:baseline;gap:3px;font-size:clamp(11px,3.5vw,16px);white-space:nowrap}.scoreDiff{color:#c90020;font-weight:bold;text-align:right}.scoreRemaining{text-align:right}
 .scoreSummaryLine span:last-child{text-align:right;white-space:nowrap}
 .formrow{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin:3px 0}
 label{font-weight:700}input,select{font:inherit;padding:8px;border:1px solid #aaa;border-radius:5px;max-width:100%}
@@ -54,7 +54,7 @@ table{border-collapse:collapse;width:100%;background:white}
 #matchesTable{overflow:auto}
 .matchBlock{border-bottom:1px solid #ddd;padding:0 0 8px;margin:0 0 8px}
 .matchBlock:last-child{border-bottom:0;margin-bottom:0}
-.matchTime{display:block;width:100%;text-align:left;background:#ffeb65;border:0;padding:7px 8px;font-weight:bold;cursor:pointer}
+.matchTime{white-space:nowrap;height:33px;display:block;width:100%;text-align:left;background:#ffeb65;border:0;padding:7px 8px;font-weight:bold;cursor:pointer}
 .matchTimeSpacer{display:block;width:100%;height:33px;padding:7px 8px;visibility:hidden}
 .matchScores{padding:5px 8px;line-height:1.8;white-space:normal}
 .finishRow{display:flex;justify-content:flex-end;margin:10px 0 14px}
@@ -81,7 +81,7 @@ table{border-collapse:collapse;width:100%;background:white}
 </head>
 <body>
 <header>
- <div class="titleline"><div class="version">b1v25</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
+ <div class="titleline"><div class="version">b1v26</div><h1>U&nbsp; N O&nbsp; !</h1><button type="button" class="gear" id="gearButton" aria-label="Import or export scores" title="Import or export scores">⚙</button></div>
  <nav aria-label="Main menu">
   <button id="menuMatches" data-menu="matches">Matches</button>
   <button id="menuGames" data-menu="games">Games</button>
@@ -118,10 +118,10 @@ table{border-collapse:collapse;width:100%;background:white}
 </dialog>
 <input id="importFileInput" type="file" accept=".json,application/json" hidden>
 <main id="displayArea">
- <img id="hero" src="./uno-reverse-pack.jpg?v=b1v25" alt="UNO Reverse Pack">
+ <img id="hero" src="./uno-reverse-pack.jpg?v=b1v26" alt="UNO Reverse Pack">
  <button id="heroButton" aria-label="Start or continue match"></button>
  <section id="matchesScreen" class="screen"><h2>Matches</h2><div id="matchesTable"></div></section>
- <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span><button type="button" id="awakeButton" class="secondary" aria-pressed="false">Keep screen awake: Off</button></div><div id="gameScreenContent"></div></section>
+ <section id="gamesScreen" class="screen"><div class="screenHeading"><h2>Games</h2><span id="activeTurn"></span></div><div id="gameScreenContent"></div></section>
  <section id="statsScreen" class="screen"><h2>Stats</h2><div id="statsContent" class="notice"></div></section>
  <section id="settingsScreen" class="screen"><h2>Settings</h2><div class="notice" style="margin-top:10px"><label style="display:flex;align-items:center;gap:10px;font-weight:700"><input id="playLostSound" type="checkbox" style="width:20px;height:20px"> Play 'lost' sound</label><p class="small">When Paula loses a match, UnoApp will randomly play one of the sounds in the sounds directory.</p></div></section>
 </main>
@@ -151,20 +151,7 @@ if(/Score>0/.test(gamesSchema)){
  }catch(e){try{db.run("ROLLBACK;");}catch(_){}throw e;}
  db.run("PRAGMA foreign_keys=ON;");
 }
-// One-time b1v23 initialization: clear prior match/game data and reset AUTOINCREMENT counters.
-// The marker prevents this reset from repeating on subsequent launches.
-const resetKey="unoapp-b1v22-database-reset-done";
-if(localStorage.getItem(resetKey)!=="yes"){
- db.run("BEGIN TRANSACTION;");
- try{
-  db.run("DELETE FROM Games;");
-  db.run("DELETE FROM Matches;");
-  db.run("DELETE FROM sqlite_sequence WHERE name IN ('Games','Matches');");
-  db.run("COMMIT;");
-  await persistDb();
-  localStorage.setItem(resetKey,"yes");
- }catch(e){try{db.run("ROLLBACK;");}catch(_){}throw e;}
-}else{await persistDb();}
+await persistDb();
 }
 function appAlert(message){alert("The UNO app says: "+message);}
 function appConfirm(message){return confirm("The UNO app says: "+message);}
@@ -238,10 +225,10 @@ function showMatches(){
  html+='</tr></thead><tbody><tr>';
  dates.forEach(date=>{
    const dayMatches=matches.filter(m=>m.Date===date);
-   html+='<td style="vertical-align:top;white-space:normal;width:65px;min-width:65px;padding:4px">';
+   html+='<td style="vertical-align:top;white-space:normal;width:84px;min-width:84px;padding:4px">';
    dayMatches.forEach(m=>{
      const gs=rows("SELECT * FROM Games WHERE MatchId=? ORDER BY GameId",[m.MatchId]);
-     html+=`<div class="matchBlock"><button class="matchTime" data-match="${m.MatchId}" aria-label="Open match ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}">${escapeHtml(m.Time)}</button>`;
+     html+=`<div class="matchBlock"><button class="matchTime" data-match="${m.MatchId}" aria-label="Open match ${escapeHtml(m.Date)} ${escapeHtml(formatTime12(m.Time))}">${escapeHtml(formatTime12(m.Time))}</button>`;
      if(gs.length) html+=`<div class="matchScores">${gs.map(g=>escapeHtml(g.Score)).join("<br>")}</div>`;
      html+='</div>';
    });
@@ -273,6 +260,8 @@ function showMatchCount(){
  $("matchesTable").innerHTML=html;
 }
 
+function formatTime12(time){const m=/^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(time));if(!m)return String(time);const h=Number(m[1]);return `${h%12||12}:${m[2]} ${h<12?"AM":"PM"}`;}
+function scoreExtras(score,other){return `<span class="scoreDiff">${score>other?"+"+(score-other):""}</span><span class="scoreRemaining">(${Math.max(0,300-score)})</span>`;}
 function showGames(){
  $("messageArea").style.display="none";hideScreens();$("gamesScreen").classList.add("visible");
  const m= currentMatchId ? rows("SELECT * FROM Matches WHERE MatchId=?",[currentMatchId])[0] : activeMatch();
@@ -285,7 +274,7 @@ function showGames(){
  const paulaLosses=gs.filter(g=>g.Loser==="P").length;
  const activePlayer=gs.length%2===0?"Don":"Paula";
  $("activeTurn").textContent=activePlayer+"'s turn";
- let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(m.Time)}<br>Games played: ${t.n}<div class="scoreSummaryLine"><span>Don's score: ${t.don}</span><span>Don's losses: ${donLosses}</span></div><div class="scoreSummaryLine"><span>Paula's score: ${t.paula}</span><span>Paula's losses: ${paulaLosses}</span></div>${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;
+ let html=`<div class="notice"><b>Match:</b> ${escapeHtml(m.Date)} ${escapeHtml(formatTime12(m.Time))}<br>Games played: ${t.n}<div class="scoreSummaryLine"><span>Don's score: ${t.don}</span>${scoreExtras(Number(t.don),Number(t.paula))}<span>Don's losses: ${donLosses}</span></div><div class="scoreSummaryLine"><span>Paula's score: ${t.paula}</span>${scoreExtras(Number(t.paula),Number(t.don))}<span>Paula's losses: ${paulaLosses}</span></div>${ended?'<p><b>Match complete (300-point limit reached).</b></p>':''}</div>`;
  if(!ended){
    html+='<h3>Record completed game</h3><div class="formrow"><label>Loser:</label><div class="loserButtons" role="group" aria-label="Select loser"><button type="button" class="loserButton" id="loserDon" aria-pressed="false">Don</button><button type="button" class="loserButton" id="loserPaula" aria-pressed="false">Paula</button></div><label for="score">Score:</label><input id="score" type="number" min="0" step="1" inputmode="numeric" placeholder="Points" disabled style="width:70px"><button class="action" id="saveGame" disabled>Save</button><button class="secondary" id="changeGame" disabled>Change</button></div>';
  }
@@ -433,30 +422,25 @@ $("continueScoresAction").addEventListener("click",async()=>{
 $("importFileInput").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];try{await importScoresFile(file);}catch(err){appAlert("Could not import scores: "+err.message);}});
 $("dateDialog").addEventListener("cancel",()=>{});
 (async()=>{try{if(!window.indexedDB)throw new Error("This browser does not support IndexedDB storage.");if(!window.initSqlJs)throw new Error("SQLite library did not load. Connect to the Internet once and reload.");SQL=await initSqlJs({locateFile:file=>"https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/"+file});await loadDb();showHome();}catch(e){$("statusMessage").textContent="UnoApp setup issue";$("summary").textContent=e.message;console.error(e);}})();
-let screenWakeLock=null;
-async function setScreenAwake(enable){
- const button=$("awakeButton");
- if(!button)return;
- if(enable){
-  if(!("wakeLock" in navigator)){appAlert("This browser does not support keeping the screen awake from the app. You can increase Screen timeout in your device Settings.");return;}
-  try{
-   screenWakeLock=await navigator.wakeLock.request("screen");
-   screenWakeLock.addEventListener("release",()=>{screenWakeLock=null;button.textContent="Keep screen awake: Off";button.setAttribute("aria-pressed","false");});
-   button.textContent="Keep screen awake: On";button.setAttribute("aria-pressed","true");
-  }catch(e){appAlert("The screen could not be kept awake. Keep UnoApp open and the screen visible, then try again.");}
- }else{
-  if(screenWakeLock){try{await screenWakeLock.release();}catch(e){} screenWakeLock=null;}
-  button.textContent="Keep screen awake: Off";button.setAttribute("aria-pressed","false");
- }
+let screenWakeLock=null, wakePending=false;
+async function keepScreenAwake(){
+ if(document.visibilityState!=="visible"||wakePending||screenWakeLock||!navigator.wakeLock)return;
+ wakePending=true;
+ try{const lock=await navigator.wakeLock.request("screen");
+ if(document.visibilityState!=="visible"){await lock.release();return;}
+ screenWakeLock=lock;
+ lock.addEventListener("release",()=>{if(screenWakeLock===lock)screenWakeLock=null;});
+ }catch(e){console.warn("Wake lock unavailable",e);}finally{wakePending=false;}
 }
-$("awakeButton").addEventListener("click",()=>setScreenAwake(!screenWakeLock));
-document.addEventListener("visibilitychange",async()=>{
- if(document.visibilityState==="visible"&&$("awakeButton")&&$("awakeButton").getAttribute("aria-pressed")==="true"&&!screenWakeLock){await setScreenAwake(true);}
-});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")keepScreenAwake();else if(screenWakeLock)screenWakeLock.release().catch(()=>{});});
+window.addEventListener("focus",keepScreenAwake);
+window.addEventListener("pageshow",keepScreenAwake);
+document.addEventListener("pointerdown",keepScreenAwake,{passive:true});
+keepScreenAwake();
 
 if("serviceWorker" in navigator)window.addEventListener("load",async()=>{
  try{
-   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v25",{updateViaCache:"none"});
+   const registration=await navigator.serviceWorker.register("./sw.js?v=b1v26",{updateViaCache:"none"});
    registration.update().catch(()=>{});
  }catch(e){console.warn("Service worker update failed",e);}
 });

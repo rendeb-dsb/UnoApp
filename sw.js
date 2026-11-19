@@ -1,4 +1,4 @@
-const CACHE="unoapp-b1v25";
+const CACHE="unoapp-b1v26";
 const ASSETS=["./","./index.html","./manifest.json","./uno-reverse-pack.jpg","./sounds/Paula_Lost_Again_Loser.mp3","./sounds/Paula_Big_Loser.mp3"];
 self.addEventListener("install",event=>{
   event.waitUntil((async()=>{await caches.open(CACHE).then(cache=>cache.addAll(ASSETS));await self.skipWaiting();})());
