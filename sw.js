@@ -1,7 +1,8 @@
-const CACHE="unoapp-b1v26";
-const ASSETS=["./","./index.html","./manifest.json","./uno-reverse-pack.jpg","./sounds/Paula_Lost_Again_Loser.mp3","./sounds/Paula_Big_Loser.mp3"];
+const CACHE="unoapp-b1v27";
+const ASSETS=["./", "./index.html", "./manifest.json", "./uno-reverse-pack.jpg", "./sounds/index.json"];
+const OPTIONAL_SOUNDS=["./sounds/Paula_Big_Loser.mp3", "./sounds/Paula_Lost_Again_Loser.mp3", "./sounds/Paula_Uno_Master.mp3", "./sounds/Sorry%20to%20see%20you%20lose%2C%20Don.mp3"];
 self.addEventListener("install",event=>{
-  event.waitUntil((async()=>{await caches.open(CACHE).then(cache=>cache.addAll(ASSETS));await self.skipWaiting();})());
+  event.waitUntil((async()=>{await caches.open(CACHE).then(cache=>cache.addAll(ASSETS));await Promise.allSettled(OPTIONAL_SOUNDS.map(async path=>(await caches.open(CACHE)).add(path)));await self.skipWaiting();})());
 });
 self.addEventListener("activate",event=>{
   event.waitUntil((async()=>{
@@ -13,12 +14,12 @@ self.addEventListener("activate",event=>{
 self.addEventListener("fetch",event=>{
   const request=event.request;
   const url=new URL(request.url);
-  if(request.method!=="GET"||url.hostname==="cdnjs.cloudflare.com")return;
+  if(request.method!=="GET"||url.origin!==self.location.origin)return;
   if(url.origin===self.location.origin){
     const scopePath=new URL(self.registration.scope).pathname;
     const rootPath=scopePath.endsWith("/")?scopePath:scopePath+"/";
     const isAppShell=url.pathname===rootPath||url.pathname===rootPath.slice(0,-1)||url.pathname===rootPath+"index.html"||url.pathname.endsWith("/index.html")||url.pathname.endsWith("/sw.js");
-    if(isAppShell){
+    if(isAppShell||url.pathname===rootPath+"sounds/index.json"){
       event.respondWith((async()=>{
         try{
           const response=await fetch(request,{cache:"no-store"});
@@ -31,5 +32,5 @@ self.addEventListener("fetch",event=>{
       return;
     }
   }
-  event.respondWith(caches.match(request).then(cached=>cached||fetch(request)));
+  event.respondWith(caches.match(request).then(async cached=>{if(cached)return cached;const response=await fetch(request);if(response.ok && url.pathname.includes("/sounds/")){const cache=await caches.open(CACHE);await cache.put(request,response.clone());}return response;}));
 });
